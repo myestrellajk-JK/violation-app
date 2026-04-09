@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<title>차량 위반 관리 시스템</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a18; font-size: 14px; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 60px; }
+  .header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .header-icon { width: 40px; height: 40px; border-radius: 8px; background: #FCEBEB; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 20px; }
+  .header-title { font-size: 17px; font-weight: 500; }
+  .header-sub { font-size: 12px; color: #888; margin-top: 2px; }
+  .tab-nav { display: flex; gap: 4px; background: #e8e8e5; border-radius: 8px; padding: 4px; margin-bottom: 20px; }
+  .tab-btn { flex: 1; padding: 8px 0; border: none; background: transparent; border-radius: 6px; font-size: 13px; cursor: pointer; color: #666; font-family: inherit; }
+  .tab-btn.active { background: #fff; color: #1a1a18; font-weight: 500; box-shadow: 0 0.5px 2px rgba(0,0,0,0.08); }
+  .card { background: #fff; border: 0.5px solid #e0e0dc; border-radius: 12px; overflow: hidden; }
+  .card-header { padding: 12px 16px; border-bottom: 0.5px solid #e0e0dc; }
+  .card-header-title { font-size: 13px; font-weight: 500; }
+  .card-header-sub { font-size: 11px; color: #999; margin-top: 2px; }
+  label.fl { display: block; font-size: 12px; font-weight: 500; color: #666; margin-bottom: 6px; }
+  input[type=text], select, textarea { width: 100%; padding: 8px 10px; border: 0.5px solid #ccc; border-radius: 7px; font-size: 14px; font-family: inherit; background: #fff; color: #1a1a18; outline: none; }
+  input[type=text]:focus, select:focus, textarea:focus { border-color: #888; }
+  textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+  .plate-input { font-family: monospace; font-size: 17px; letter-spacing: 2px; font-weight: 600; }
+  .frow { display: flex; gap: 10px; margin-bottom: 14px; }
+  .frow > div { flex: 1; }
+  .frow > div.f2 { flex: 2; }
+  .fblock { margin-bottom: 14px; }
+  .cat-lbl { font-size: 11px; font-weight: 500; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .cdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .cgrp { margin-bottom: 12px; }
+  .pgrid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { padding: 6px 12px; border-radius: 7px; border: 0.5px solid #ccc; background: #fff; color: #666; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .rule-preview { display:none; background:#E6F1FB; border:0.5px solid #185FA544; border-radius:8px; padding:10px 14px; margin-top:10px; }
+  .rule-preview.show { display:block; }
+  .rule-preview-title { font-size:11px; color:#185FA5; font-weight:500; margin-bottom:6px; }
+  .rule-preview-tags { display:flex; flex-wrap:wrap; gap:6px; }
+  .rule-tag { display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:6px; background:#fff; border:0.5px solid #185FA544; font-size:12px; color:#185FA5; }
+  .rule-tag-num { font-size:13px; font-weight:700; }
+  .rule-preview { display:none; background:#E6F1FB; border:0.5px solid #185FA544; border-radius:8px; padding:10px 14px; margin-top:10px; }
+  .rule-preview.show { display:block; }
+  .rule-preview-title { font-size:11px; color:#185FA5; font-weight:500; margin-bottom:6px; }
+  .rule-preview-tags { display:flex; flex-wrap:wrap; gap:6px; }
+  .rule-tag { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:6px; background:#fff; border:0.5px solid #185FA544; font-size:12px; font-weight:500; color:#185FA5; }
+  .rule-tag-num { font-size:15px; font-weight:700; color:#185FA5; }
+  .sevrow { display: flex; gap: 6px; }
+  .sevbtn { flex: 1; padding: 7px 0; border-radius: 7px; border: 0.5px solid #ccc; background: #fff; color: #666; font-size: 13px; cursor: pointer; font-family: inherit; }
+  .savebtn { width: 100%; padding: 14px; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 8px; border: 1.5px solid #E24B4A; background: #FCEBEB; color: #A32D2D; font-family: inherit; }
+  .savebtn.ok { border-color: #3B6D11; background: #EAF3DE; color: #3B6D11; }
+  .ebox { padding: 10px 14px; border-radius: 7px; background: #FCEBEB; color: #A32D2D; font-size: 13px; border: 0.5px solid #f0959588; margin-bottom: 10px; }
+  .sgrid { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .scard { flex: 1; min-width: 80px; background: #f0efea; border-radius: 8px; padding: 12px 14px; }
+  .slbl { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .sval { font-size: 26px; font-weight: 500; line-height: 1; }
+  .ssub { font-size: 11px; color: #aaa; margin-top: 4px; }
+  .filt-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .filt-cnt { font-size: 12px; color: #aaa; margin-bottom: 10px; }
+  .hlist { display: grid; gap: 8px; }
+  .hitem { background: #fff; border: 0.5px solid #e0e0dc; border-radius: 12px; overflow: hidden; }
+  .hrow { padding: 12px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+  .sevbar { width: 4px; height: 36px; border-radius: 2px; flex-shrink: 0; }
+  .hmeta { flex: 1; min-width: 0; }
+  .htop { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; flex-wrap: wrap; }
+  .htime { font-size: 11px; color: #aaa; margin-left: auto; white-space: nowrap; }
+  .hbadges { display: flex; flex-wrap: wrap; gap: 4px; }
+  .earrow { font-size: 11px; color: #bbb; flex-shrink: 0; }
+  .hdetail { border-top: 0.5px solid #e0e0dc; padding: 12px 14px 14px; background: #fafafa; display: none; }
+  .hdetail.open { display: block; }
+  .dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-bottom: 10px; }
+  .dlbl { font-size: 11px; color: #aaa; margin-bottom: 2px; }
+  .dval { font-size: 13px; }
+  .delarea { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
+  .delbtn { padding: 5px 12px; border-radius: 7px; border: 0.5px solid #ccc; background: transparent; color: #aaa; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .delcbtn { padding: 5px 12px; border-radius: 7px; border: 0.5px solid #f0959588; background: #FCEBEB; color: #A32D2D; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .delxbtn { padding: 5px 12px; border-radius: 7px; border: 0.5px solid #ccc; background: transparent; color: #666; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap; line-height: 1.6; }
+  .rbadge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; background: #E6F1FB; color: #185FA5; border: 0.5px solid #185FA544; }
+  .rbadge span { font-weight: 400; font-size: 10px; }
+  .brow { margin-bottom: 12px; }
+  .binfo { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; }
+  .binfo-l { display: flex; align-items: center; gap: 6px; }
+  .btrack { height: 6px; background: #f0efea; border-radius: 3px; }
+  .bfill { height: 100%; border-radius: 3px; }
+  .orow { padding: 10px 16px; border-bottom: 0.5px solid #e0e0dc; display: flex; align-items: center; gap: 12px; }
+  .orow:last-child { border-bottom: none; }
+  .rankb { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; background: #f0efea; color: #888; }
+  .ometa { flex: 1; min-width: 0; }
+  .oplate { font-family: monospace; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .ocnt { font-size: 16px; font-weight: 500; flex-shrink: 0; }
+  .ocnt span { font-size: 11px; color: #aaa; margin-left: 2px; }
+  .trrow { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .trnum { min-width: 20px; font-size: 11px; color: #aaa; }
+  .trmeta { flex: 1; min-width: 0; }
+  .trinfo { display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 13px; }
+  /* 12대 수칙 그리드 */
+  .rules-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 16px; }
+  .rcell { border-radius: 8px; padding: 10px 6px; text-align: center; cursor: pointer; border: 0.5px solid #e0e0dc; background: #fafafa; }
+  .rcell:hover { background: #f0efea; }
+  .rcell.on { border-color: #185FA5aa; background: #E6F1FB; }
+  .rcell-n { font-size: 20px; font-weight: 600; line-height: 1; color: #ccc; }
+  .rcell.on .rcell-n { color: #185FA5; }
+  .rcell-nm { font-size: 9px; color: #bbb; margin: 3px 0 5px; line-height: 1.3; word-break: keep-all; }
+  .rcell.on .rcell-nm { color: #185FA5; }
+  .rcell-c { font-size: 15px; font-weight: 500; color: #bbb; }
+  .rcell.on .rcell-c { color: #A32D2D; }
+  .rcell-u { font-size: 9px; color: #aaa; }
+  .empty { padding: 3rem; text-align: center; color: #aaa; font-size: 14px; white-space: pre-line; }
+  .period-nav { display: flex; gap: 4px; background: #e8e8e5; border-radius: 8px; padding: 4px; margin-bottom: 16px; overflow-x: auto; }
+  .period-btn { flex: 1; min-width: 56px; padding: 7px 4px; border: none; background: transparent; border-radius: 6px; font-size: 12px; cursor: pointer; color: #666; font-family: inherit; white-space: nowrap; }
+  .period-btn.active { background: #fff; color: #1a1a18; font-weight: 500; box-shadow: 0 0.5px 2px rgba(0,0,0,0.08); }
+  .period-range { font-size: 11px; color: #aaa; margin-bottom: 12px; text-align: right; }
+  .custom-range { display:none; background:#fff; border:0.5px solid #e0e0dc; border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+  .custom-range.open { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .custom-range input[type=date] { flex:1; min-width:120px; padding:7px 10px; border:0.5px solid #ccc; border-radius:7px; font-size:13px; font-family:inherit; background:#fff; color:#1a1a18; }
+  .custom-range-btn { padding:7px 16px; border-radius:7px; border:1.5px solid #185FA5; background:#E6F1FB; color:#185FA5; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .custom-range-sep { font-size:13px; color:#aaa; }
+  .photo-zone { border:1.5px dashed #ccc; border-radius:10px; padding:16px; text-align:center; cursor:pointer; background:#fafafa; transition:border-color 0.15s; margin-bottom:0; }
+  .photo-zone:hover, .photo-zone.drag-over { border-color:#185FA5; background:#E6F1FB; }
+  .photo-zone-label { font-size:13px; color:#aaa; pointer-events:none; }
+  .photo-zone-sub { font-size:11px; color:#bbb; margin-top:4px; pointer-events:none; }
+  .photo-preview-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
+  .photo-thumb-wrap { position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; background:#f0efea; }
+  .photo-thumb-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-thumb-del { position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.55); border:none; color:#fff; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; }
+  .custom-range { display:none; background:#fff; border:0.5px solid #e0e0dc; border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+  .custom-range.open { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .custom-range input[type=date] { flex:1; min-width:120px; padding:7px 10px; border:0.5px solid #ccc; border-radius:7px; font-size:13px; font-family:inherit; background:#fff; color:#1a1a18; }
+  .custom-range-btn { padding:7px 16px; border-radius:7px; border:1.5px solid #185FA5; background:#E6F1FB; color:#185FA5; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .custom-range-sep { font-size:13px; color:#aaa; }
+  .custom-range { display:none; background:#fff; border:0.5px solid #e0e0dc; border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+  .custom-range.open { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .custom-range input[type=date] { flex:1; min-width:120px; padding:7px 10px; border:0.5px solid #ccc; border-radius:7px; font-size:13px; font-family:inherit; }
+  .custom-range-btn { padding:7px 16px; border-radius:7px; border:1.5px solid #185FA5; background:#E6F1FB; color:#185FA5; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .custom-range-sep { font-size:13px; color:#aaa; }
+  .photo-zone { border:1.5px dashed #ccc; border-radius:10px; padding:16px; text-align:center; cursor:pointer; background:#fafafa; transition:border-color 0.15s; }
+  .photo-zone:hover, .photo-zone.drag-over { border-color:#185FA5; background:#E6F1FB; }
+  .photo-zone-lbl { font-size:13px; color:#888; pointer-events:none; }
+  .photo-zone-sub { font-size:11px; color:#bbb; margin-top:4px; pointer-events:none; }
+  .photo-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px; }
+  .photo-wrap { position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; background:#f0efea; }
+  .photo-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-del { position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.55); border:none; color:#fff; font-size:13px; cursor:pointer; line-height:20px; text-align:center; padding:0; }
+  .tc { display: none; }
+  .tc.active { display: block; }
+  .smb { margin-bottom: 16px; }
+
+  /* ── APP SHELL ── */
+  body { background: #f2f2f7; -webkit-tap-highlight-color: transparent; }
+  .app-header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-bottom: 0.5px solid rgba(0,0,0,0.1);
+    padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    display: flex; align-items: center; gap: 10px;
+  }
+  .app-header-icon { font-size: 22px; }
+  .app-header-title { font-size: 17px; font-weight: 600; flex: 1; }
+  .app-header-sub { font-size: 11px; color: #8e8e93; margin-top: 1px; }
+  .app-header-badge {
+    background: #E24B4A; color: #fff;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 7px; border-radius: 10px; flex-shrink: 0;
+  }
+
+  /* ── BOTTOM TAB BAR ── */
+  .bottom-tab {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-top: 0.5px solid rgba(0,0,0,0.1);
+    display: flex;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .btab {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px;
+    padding: 8px 0; border: none; background: transparent; cursor: pointer;
+    color: #8e8e93; font-family: inherit; font-size: 10px; font-weight: 500;
+    transition: color 0.15s;
+  }
+  .btab.active { color: #E24B4A; }
+  .btab-icon { font-size: 22px; line-height: 1; }
+  .btab.active .btab-icon { transform: scale(1.1); }
+
+  /* ── CONTENT AREA ── */
+  .app-content {
+    max-width: 640px; margin: 0 auto;
+    padding: 16px 16px 24px;
+    padding-top: calc(72px + env(safe-area-inset-top));
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    min-height: 100vh;
+  }
+
+  /* ── SECTION HEADER ── */
+  .section-title {
+    font-size: 20px; font-weight: 700;
+    color: #1c1c1e; margin-bottom: 16px;
+    letter-spacing: -0.3px;
+  }
+
+  /* ── CARDS (iOS style) ── */
+  .card { background: #fff; border-radius: 12px; overflow: hidden; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .ios-group { border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; }
+  .ios-group .fblock:last-child { margin-bottom: 0; }
+
+  /* ── FORM FIELDS (iOS style) ── */
+  label.fl { font-size: 12px; font-weight: 600; color: #8e8e93; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
+  input[type=text], input[type=password], select, textarea {
+    width: 100%; padding: 11px 12px;
+    border: none; border-radius: 10px;
+    font-size: 16px; font-family: inherit;
+    background: #fff; color: #1c1c1e; outline: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    -webkit-appearance: none;
+  }
+  input[type=text]:focus, input[type=password]:focus, select:focus, textarea:focus {
+    box-shadow: 0 0 0 3px rgba(226,75,74,0.15);
+  }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238e8e93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  textarea { resize: vertical; min-height: 70px; line-height: 1.5; border-radius: 10px; }
+  .plate-input { font-family: monospace; font-size: 20px; letter-spacing: 3px; font-weight: 700; }
+
+  /* ── SAVE BUTTON ── */
+  .savebtn {
+    width: 100%; padding: 16px; font-size: 16px; font-weight: 600; cursor: pointer;
+    border-radius: 12px; border: none;
+    background: #E24B4A; color: #fff; font-family: inherit;
+    box-shadow: 0 2px 8px rgba(226,75,74,0.3);
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .savebtn:active { opacity: 0.85; transform: scale(0.98); }
+  .savebtn.ok { background: #34C759; box-shadow: 0 2px 8px rgba(52,199,89,0.3); }
+
+  /* ── PILLS (violation types) ── */
+  .pill { padding: 8px 14px; border-radius: 20px; border: 1.5px solid #e5e5ea; background: #fff; color: #8e8e93; font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 500; }
+
+  /* ── SEVERITY BUTTONS ── */
+  .sevbtn { flex: 1; padding: 10px 0; border-radius: 10px; border: 1.5px solid #e5e5ea; background: #fff; color: #8e8e93; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; }
+
+  /* ── HISTORY ITEMS ── */
+  .hitem { background: #fff; border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .hrow { padding: 14px 16px; }
+
+  /* ── STAT CARDS ── */
+  .scard { flex: 1; min-width: 80px; background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .slbl { font-size: 11px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.3px; }
+  .sval { font-size: 28px; font-weight: 700; line-height: 1.1; margin-top: 2px; }
+
+  /* ── PERIOD NAV ── */
+  .period-nav { background: #e5e5ea; border-radius: 10px; }
+  .period-btn { border-radius: 8px; font-weight: 500; }
+  .period-btn.active { box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+
+  /* ── FILTERS ── */
+  .filt-row input, .filt-row select { font-size: 15px; padding: 10px 12px; }
+
+  /* ── ADMIN LOCK ── */
+  #admin-lock { box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: none; }
+
+  /* ── ERROR BOX ── */
+  .ebox { padding: 12px 14px; border-radius: 10px; background: #FCEBEB; color: #A32D2D; font-size: 14px; border: none; margin-bottom: 12px; }
+
+  /* ── HIDE OLD HEADER/TAB ── */
+  .header, .tab-nav { display: none !important; }
+  .wrap { padding: 0; max-width: none; }
+</style>
+</head>
+<body>
+<!-- 앱 헤더 -->
+<div class="app-header">
+  <div class="app-header-icon">🚗</div>
+  <div style="flex:1">
+    <div class="app-header-title">차량 위반 관리</div>
+    <div class="app-header-sub" id="hsub">교통안전 모니터링</div>
+  </div>
+  <div class="app-header-badge" id="header-badge" style="display:none">0</div>
+</div>
+
+<!-- 콘텐츠 영역 -->
+<div class="app-content">
+<div class="wrap">
+
+  <!-- ENTRY -->
+  <div id="tab-entry" class="tc active">
+    <div class="section-title">위반 입력</div>
+    <div class="fblock">
+      <label class="fl">점검 활동 *</label>
+      <select id="factivity" onchange="onActivityChange()" style="width:100%;padding:8px 10px;border:0.5px solid #ccc;border-radius:7px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a18;outline:none;">
+        <option value="">-- 선택해주세요 --</option>
+      </select>
+    </div>
+    <div class="fblock" id="activity-etc-block" style="display:none">
+      <label class="fl">기타 활동 내용</label>
+      <input type="text" id="factivity-etc" placeholder="활동 내용을 입력해주세요">
+    </div>
+    <div class="fblock">
+      <label class="fl">차량번호 *</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="fp" class="plate-input" placeholder="예: 123가4567" list="plate-list" autocomplete="off" maxlength="12" oninput="normalizePlate(this)" style="flex:1">
+        <button type="button" onclick="openCarFind()" style="padding:8px 12px;border-radius:7px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">🔍 차량 조회</button>
+      </div>
+      <datalist id="plate-list"></datalist>
+      <div style="font-size:11px;color:#aaa;margin-top:4px">조회 후 차량번호 더블클릭 → 자동 입력 · 신규 차량은 직접 입력 (띄어쓰기 없이)</div>
+    </div>
+    <div class="fblock">
+      <label class="fl">위반조직</label>
+      <input type="text" id="forg" placeholder="조직명 입력 또는 선택" list="org-list" autocomplete="off">
+      <datalist id="org-list"></datalist>
+    </div>
+    <div class="fblock">
+      <label class="fl">위반자</label>
+      <input type="text" id="fr" placeholder="이름" list="reporter-list" autocomplete="off">
+      <datalist id="reporter-list"></datalist>
+    </div>
+    <div class="fblock">
+      <label class="fl" style="font-size:12px;color:#666;">위반일시 <span style="font-weight:400;color:#aaa">(수정이 필요한 경우 선택해주세요.)</span></label>
+      <input type="datetime-local" id="fdt" style="width:100%;padding:8px 10px;border:0.5px solid #ccc;border-radius:7px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a18;outline:none;">
+    </div>
+    <div class="frow">
+      <div class="f2">
+        <label class="fl">위반장소</label>
+        <input type="text" id="fz" placeholder="장소 입력 또는 선택" list="zone-list" autocomplete="off">
+        <datalist id="zone-list"></datalist>
+      </div>
+      <div><label class="fl">심각도</label><div class="sevrow" id="sevrow"></div></div>
+    </div>
+    <div class="fblock">
+      <label class="fl">세부장소</label>
+      <input type="text" id="fdetail" placeholder="세부 위치를 입력해주세요 (예: 3번 게이트 앞)">
+    </div>
+    <div class="fblock">
+      <label class="fl">사진 등록 <span style="font-weight:400;color:#aaa;font-size:11px">최대 2장</span></label>
+      <div class="photo-zone" id="photo-zone"
+        onclick="document.getElementById('photo-input').click()"
+        ondragover="photoDragOver(event)"
+        ondragleave="photoDragLeave(event)"
+        ondrop="photoDrop(event)">
+        <div class="photo-zone-lbl">📷 클릭하거나 사진을 끌어다 놓으세요</div>
+        <div class="photo-zone-sub">PC: 드래그&amp;드롭 · 클립보드 붙여넣기(Ctrl+V) · 모바일: 촬영 또는 앨범</div>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" multiple style="display:none" onchange="photoFileSelect(event)">
+      <div class="photo-grid" id="photo-preview"></div>
+    </div>
+    <div class="fblock">
+      <label class="fl">위반 유형 * (복수선택 가능)</label>
+      <div id="tgrid"></div>
+      <div class="rule-preview" id="rule-preview">
+        <div class="rule-preview-title">⚡ 해당 12대 수칙</div>
+        <div class="rule-preview-tags" id="rule-preview-tags"></div>
+      </div>
+    </div>
+    <div class="fblock"><label class="fl">비고</label><textarea id="fn" placeholder="상황 설명, 특이사항 등..."></textarea></div>
+    <div id="ferr" class="ebox" style="display:none"></div>
+    <button class="savebtn" id="savebtn" onclick="doSave()">위반 기록 저장</button>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="tab-history" class="tc">
+    <div class="section-title">이력 조회</div>
+    <div class="filt-row">
+      <input type="text" id="fip" placeholder="차량번호 검색" oninput="renderHist()" style="font-family:monospace;flex:2;min-width:100px">
+      <select id="fit" onchange="renderHist()" style="flex:2;min-width:100px"><option value="">전체 유형</option></select>
+      <select id="fis" onchange="renderHist()" style="flex:1;min-width:60px">
+        <option value="">전체</option><option value="low">주의</option><option value="mid">경고</option><option value="high">심각</option>
+      </select>
+    </div>
+    <div class="filt-row" style="margin-bottom:4px">
+      <select id="fir" onchange="renderHist()">
+        <option value="">전체 수칙</option>
+        <option value="mapped">12대 수칙 해당</option>
+        <option value="none">수칙 미지정</option>
+      </select>
+    </div>
+    <div class="filt-row" style="margin-bottom:12px;align-items:center;gap:6px">
+      <input type="date" id="hfrom" onchange="renderHist()" style="flex:1;min-width:110px;padding:7px 8px;border:0.5px solid #ccc;border-radius:7px;font-size:13px;font-family:inherit;background:#fff;color:#1a1a18;">
+      <span style="font-size:12px;color:#aaa;flex-shrink:0">~</span>
+      <input type="date" id="hto" onchange="renderHist()" style="flex:1;min-width:110px;padding:7px 8px;border:0.5px solid #ccc;border-radius:7px;font-size:13px;font-family:inherit;background:#fff;color:#1a1a18;">
+      <button onclick="clearHistDate()" style="padding:6px 10px;border-radius:7px;border:0.5px solid #ccc;background:transparent;color:#aaa;font-size:12px;cursor:pointer;font-family:inherit;flex-shrink:0">초기화</button>
+    </div>
+    <div class="filt-cnt" id="fcnt"></div>
+    <div class="hlist" id="hlist"></div>
+  </div>
+
+  <!-- STATS -->
+  <div id="tab-stats" class="tc">
+    <div class="section-title">통계 현황</div>
+    <div class="period-nav">
+      <button class="period-btn" onclick="setPeriod('week')">최근7일</button>
+      <button class="period-btn active" onclick="setPeriod('month')">이번달</button>
+      <button class="period-btn" onclick="setPeriod('quarter')">최근3개월</button>
+      <button class="period-btn" onclick="setPeriod('year')">올해</button>
+      <button class="period-btn" onclick="setPeriod('lastyear')">지난1년</button>
+      <button class="period-btn" onclick="setPeriod('all')">전체</button>
+      <button class="period-btn" onclick="setPeriod('custom')">직접설정</button>
+    </div>
+    <div class="custom-range" id="custom-range">
+      <input type="date" id="custom-start">
+      <span class="custom-range-sep">~</span>
+      <input type="date" id="custom-end">
+      <button class="custom-range-btn" onclick="applyCustomRange()">조회</button>
+    </div>
+    <div class="period-range" id="period-range"></div>
+    <div class="sgrid" id="sgrid"></div>
+    <div class="smb" id="r12card"></div>
+    <div class="smb" id="offcard"></div>
+    <div class="smb" id="catcard"></div>
+    <div id="typecard"></div>
+  </div>
+
+  <!-- ADMIN -->
+  <div id="tab-admin" class="tc">
+    <div class="section-title">관리</div>
+    <div id="admin-lock" class="card" style="padding:2rem 1.5rem;text-align:center;margin-bottom:16px">
+      <div style="font-size:32px;margin-bottom:12px">🔒</div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:6px">관리자 인증</div>
+      <div style="font-size:12px;color:#aaa;margin-bottom:20px">설정을 변경하려면 비밀번호를 입력하세요</div>
+      <input type="password" id="admin-pw-input" placeholder="비밀번호" style="width:100%;max-width:240px;text-align:center;font-size:16px;letter-spacing:4px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto" onkeydown="if(event.key==='Enter') checkAdminPW()">
+      <button onclick="checkAdminPW()" style="padding:10px 32px;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit">확인</button>
+    </div>
+    <div id="admin-panel" style="display:none">
+      <div class="card smb">
+        <div class="card-header"><div class="card-header-title">🔑 비밀번호 변경</div></div>
+        <div style="padding:14px 16px;display:grid;gap:10px">
+          <input type="password" id="new-pw1" placeholder="새 비밀번호">
+          <input type="password" id="new-pw2" placeholder="새 비밀번호 확인">
+          <button onclick="changePW()" style="padding:9px;border-radius:7px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">비밀번호 변경</button>
+        </div>
+      </div>
+      <div class="card smb">
+        <div class="card-header"><div class="card-header-title">📋 점검 활동 목록</div><div class="card-header-sub">위반 입력 시 선택 가능한 활동 유형</div></div>
+        <div style="padding:14px 16px">
+          <div id="activity-list-admin" style="margin-bottom:12px"></div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="new-activity" placeholder="새 활동 유형 입력" style="flex:1" onkeydown="if(event.key==='Enter') addActivity()">
+            <button onclick="addActivity()" style="padding:8px 14px;border-radius:7px;border:1.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">추가</button>
+          </div>
+        </div>
+      </div>
+      <div class="card smb">
+        <div class="card-header"><div class="card-header-title">📍 위반장소 목록</div><div class="card-header-sub">위반 입력 시 자동완성 목록</div></div>
+        <div style="padding:14px 16px">
+          <div id="zone-list-admin" style="margin-bottom:12px;max-height:300px;overflow-y:auto"></div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="new-zone" placeholder="새 장소 입력" style="flex:1" onkeydown="if(event.key==='Enter') addZone()">
+            <button onclick="addZone()" style="padding:8px 14px;border-radius:7px;border:1.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">추가</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-header-title">⚠️ 위반유형 · 12대수칙</div></div>
+        <div style="padding:14px 16px;font-size:13px;color:#888;line-height:1.7">위반유형 및 12대 수칙 매핑은 HTML 파일 내 <code>VT</code> 배열과 <code>R12</code> 객체를 직접 수정하세요.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.85);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+    <div style="font-size:13px;color:#888">스프레드시트에서 데이터 불러오는 중...</div>
+  </div>
+  <div id="top-banner" style="display:none;position:fixed;top:0;left:0;width:100%;background:#FAEEDA;color:#BA7517;font-size:12px;text-align:center;padding:8px;z-index:999;border-bottom:0.5px solid #EF9F2744"></div>
+  <div id="toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;font-size:13px;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.1)"></div>
+</div>
+
+  <!-- 차량 조회 팝업 -->
+  <div id="carfind-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;overflow:hidden;width:92%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+      <div style="padding:12px 16px;border-bottom:0.5px solid #e0e0dc;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div>
+          <div style="font-size:14px;font-weight:500">차량 조회</div>
+          <div style="font-size:11px;color:#aaa;margin-top:2px">차량번호를 더블클릭하면 자동 입력됩니다</div>
+        </div>
+        <button onclick="closeCarFind()" style="border:none;background:transparent;font-size:20px;color:#aaa;cursor:pointer;padding:4px 8px;line-height:1">×</button>
+      </div>
+      <div style="padding:12px 16px;border-bottom:0.5px solid #e0e0dc;flex-shrink:0">
+        <div style="display:flex;gap:6px">
+          <input type="text" id="carfind-input" placeholder="예: 123가4567" style="flex:1;font-family:monospace;font-size:15px;letter-spacing:1px;padding:8px 10px;border:0.5px solid #ccc;border-radius:7px;outline:none" oninput="normalizeCFInput(this)" onkeydown="if(event.key==='Enter') searchCar()">
+          <button onclick="searchCar()" style="padding:8px 14px;border-radius:7px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap">조회</button>
+        </div>
+      </div>
+      <div id="carfind-result" style="flex:1;overflow-y:auto;padding:12px 16px;min-height:120px;max-height:340px">
+        <div style="text-align:center;color:#aaa;font-size:13px;padding:2rem 0">차량번호를 입력 후 조회하세요</div>
+      </div>
+      <div style="padding:10px 16px;border-top:0.5px solid #e0e0dc;flex-shrink:0">
+        <button onclick="useNewPlate()" style="width:100%;padding:10px;border-radius:7px;border:0.5px solid #ccc;background:transparent;color:#666;font-size:13px;cursor:pointer;font-family:inherit">신규 차량 — 직접 입력하기</button>
+      </div>
+    </div>
+  </div><!-- end wrap -->
+</div><!-- end app-content -->
+
+<!-- 하단 탭바 -->
+<nav class="bottom-tab">
+  <button class="btab active" id="btab-entry" onclick="switchTab('entry')">
+    <span class="btab-icon">✏️</span>
+    <span>위반입력</span>
+  </button>
+  <button class="btab" id="btab-history" onclick="switchTab('history')">
+    <span class="btab-icon">📋</span>
+    <span>이력조회</span>
+  </button>
+  <button class="btab" id="btab-stats" onclick="switchTab('stats')">
+    <span class="btab-icon">📊</span>
+    <span>통계</span>
+  </button>
+  <button class="btab" id="btab-admin" onclick="switchTab('admin')">
+    <span class="btab-icon">⚙️</span>
+    <span>관리</span>
+  </button>
+</nav>
+
+<script>
+var API_URL = 'https://script.google.com/macros/s/AKfycbwa4hJ9TkpmWztf-_3nay7zrY1k2Gm1ZwNjWxAJKD96QqJ26U_A-DBxkhaUq-H0boEQ/exec';
+var ADMIN_PW = '1234';
+var curPeriod = 'month';
+var ADMIN_PW = '1234'; // ← 여기서 비밀번호 변경
+var VT = [
+  {id:'parking_bad',    label:'주차불량',                  cat:'주차', rule:6},
+  {id:'parking_double', label:'이중주차',                  cat:'주차', rule:6},
+  {id:'parking_dis',    label:'장애인구역',                cat:'주차', rule:6},
+  {id:'parking_fire',   label:'소화전',                    cat:'주차', rule:6},
+  {id:'speeding',       label:'과속',                      cat:'속도', rule:5},
+  {id:'oneway',         label:'일방통행 위반',              cat:'통행', rule:null},
+  {id:'crosswalk',      label:'횡단보도 미양보',            cat:'통행', rule:10},
+  {id:'signal',         label:'신호 무시',                  cat:'통행', rule:null},
+  {id:'centerline',     label:'중앙선 침범, 추월',          cat:'통행', rule:9},
+  {id:'reckless',       label:'난폭운전',                   cat:'통행', rule:1},
+  {id:'unauth',         label:'무단진입',                   cat:'통행', rule:null},
+  {id:'headlight',      label:'전조등 소등',                cat:'통행', rule:12},
+  {id:'seatbelt',       label:'안전벨트 미착용',            cat:'안전', rule:null},
+  {id:'phone',          label:'운전중 휴대폰/이어폰 사용',  cat:'안전', rule:3},
+  {id:'smoking',        label:'운전중 흡연',                cat:'안전', rule:4},
+  {id:'drunk',          label:'음주운전',                   cat:'안전', rule:null},
+  {id:'overload',       label:'적재물 불량',                cat:'안전', rule:8},
+  {id:'breakdown',      label:'고장방치(제동장치/라이트)',  cat:'기타', rule:11},
+  {id:'unlicensed',     label:'무자격자',                   cat:'기타', rule:2},
+  {id:'cargo_ride',     label:'적재함 탑승 위반',           cat:'기타', rule:7},
+  {id:'etc',            label:'기타',                       cat:'기타', rule:null},
+];
+var R12 = {1:'난폭운전 금지',2:'무자격자 운전 금지',3:'휴대폰/이어폰 금지',4:'운전중 흡연 금지',5:'과속 금지',6:'주차 규정 준수',7:'적재함 탑승 금지',8:'적재물 고정',9:'중앙선 침범·추월 금지',10:'횡단보도 보행자 보호',11:'고장차량 안전 관리',12:'전조등 점등 의무'};
+var ACTIVITIES = JSON.parse(localStorage.getItem('activities') || JSON.stringify([
+  '정기 교통안전 점검','합동 안전점검','수시 점검','특별 점검','신고 접수','순찰 중 적발','기타'
+]));
+
+var ZONES = JSON.parse(localStorage.getItem('zones') || 'null') || [
+  '1도크','1안벽','2도크','2안벽','D/H PE장','G/A장','R장','PE장','2PE장','3PE장',
+  'M/UNIT장','가공공장','가공공장옥외','판넬공장','판넬공장옥외','대조립공장','대조립공장옥외',
+  '#1~7도장공장','도장공장','#9도장공장','제2도장공장옥외','#8도장공장','산기도장공장옥외',
+  '중조립공장','중조립공장옥외','판넬2공장','판넬2공장옥외','배관제작공장','배관제작공장옥외',
+  '600톤 PE장','사내도로','기술교육원','중기정비공장','선행의장공장','#10도장공장',
+  '제3도장공장옥외','판넬 50BAY','산업설비 작업장','자재창고','#1~4블라스팅셀장',
+  '#5블라스팅셀장','#6블라스팅셀장','#11도장공장','#12도장공장','NO.1 BERTH','플로팅도크',
+  '대불1공장','대불2공장','NO.5PE장','NO.6PE장','NO.7PE장',
+  '도장셀타#21','도장셀타#22','도장셀타#23','도장셀타#24',
+  '블라스팅#6','블라스팅#7','블라스팅#8','페인팅#9','페인팅#10','페인팅#11',
+  '돌핀안벽','남문안벽','대불3공장','대불4공장',
+  '본관(정문)','지원관(건강증진센터)','도장관(북문)','생산관',
+  '외업1관','외업2관','외업3관','기술교육원(서문)','동문','기타'
+];
+var CC = {주차:'#185FA5',속도:'#A32D2D',통행:'#D85A30',안전:'#3B6D11',기타:'#5F5E5A'};
+var CB = {주차:'#E6F1FB',속도:'#FCEBEB',통행:'#FAECE7',안전:'#EAF3DE',기타:'#F1EFE8'};
+var SEV = {low:{l:'주의',c:'#BA7517',b:'#FAEEDA'},mid:{l:'경고',c:'#D85A30',b:'#FAECE7'},high:{l:'심각',c:'#A32D2D',b:'#FCEBEB'}};
+
+var viols=[], selT=[], curSev='low', expId=null, delId=null;
+
+function normalizeRow(r){
+  var sevMap = {'주의':'low','경고':'mid','심각':'high'};
+  var sev = sevMap[r.severity] || r.severity || 'low';
+
+  // 위반유형: 쉼표 또는 ', ' 로 구분된 한글 → ID 배열
+  var raw = r.types;
+  var rawTypes;
+  if(Array.isArray(raw)){
+    rawTypes = raw;
+  } else if(raw && String(raw).trim()){
+    rawTypes = String(raw).split(/,\s*/);
+  } else {
+    rawTypes = [];
+  }
+  var typeIds = rawTypes.map(function(label){
+    label = label.trim();
+    if(!label) return null;
+    var found = VT.find(function(v){ return v.label === label; });
+    // 못 찾으면 ID로도 시도
+    if(!found) found = VT.find(function(v){ return v.id === label; });
+    return found ? found.id : null;
+  }).filter(Boolean);
+
+  // timestamp: 구글 시트에서 Date 객체로 올 수 있음 → ISO 문자열로 변환
+  var ts = r.timestamp;
+  if(ts && typeof ts === 'object' && ts.toISOString){
+    ts = ts.toISOString();
+  } else if(ts && typeof ts === 'number'){
+    ts = new Date(ts).toISOString();
+  } else {
+    ts = ts ? String(ts) : new Date().toISOString();
+  }
+
+  return {
+    id: String(r.id),
+    plate: String(r.plate || '').trim(),
+    types: typeIds.length ? typeIds : ['etc'],
+    zone: r.zone || '',
+    detail: r.detail || '',
+    severity: sev,
+    note: r.note || '',
+    reporter: r.reporter || '',
+    timestamp: ts,
+    photos: Array.isArray(r.photos) ? r.photos : [],
+    org: r.org || '',
+    activity: r.activity || ''
+  };
+}
+
+function ld(){
+  return new Promise(function(resolve){
+    var cbName = 'jsonp_cb_'+Date.now();
+    var script = document.createElement('script');
+    var done = false;
+    var timer = setTimeout(function(){
+      if(done) return;
+      done = true;
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      showToast('서버 응답 시간 초과. 저장된 데이터가 없거나 연결 불가합니다.','warn');
+      resolve([]);
+    }, 10000);
+    window[cbName] = function(data){
+      if(done) return;
+      done = true;
+      clearTimeout(timer);
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      resolve(Array.isArray(data) ? data.map(normalizeRow) : []);
+    };
+    script.onerror = function(){
+      if(done) return;
+      done = true;
+      clearTimeout(timer);
+      delete window[cbName];
+      showToast('서버 연결 실패. Apps Script URL을 확인해주세요.','warn');
+      resolve([]);
+    };
+    script.src = API_URL+'?callback='+cbName;
+    document.head.appendChild(script);
+  });
+}
+function buildParams(obj){
+  return Object.keys(obj).map(function(k){
+    return encodeURIComponent(k)+'='+encodeURIComponent(obj[k]===null||obj[k]===undefined?'':obj[k]);
+  }).join('&');
+}
+function sevLabel(id){ return {low:'주의',mid:'경고',high:'심각'}[id]||id; }
+function typeLabels(ids){
+  return ids.map(function(id){
+    var x=VT.find(function(v){ return v.id===id; });
+    return x?x.label:id;
+  }).join(', ');
+}
+function catLabel(ids){
+  var cats=[];
+  ids.forEach(function(id){
+    var x=VT.find(function(v){ return v.id===id; });
+    if(x&&cats.indexOf(x.cat)<0) cats.push(x.cat);
+  });
+  return cats.join(', ');
+}
+function ruleLabels(ids){
+  var rules=[];
+  ids.forEach(function(id){
+    var x=VT.find(function(v){ return v.id===id; });
+    if(x&&x.rule&&rules.indexOf(x.rule)<0) rules.push(x.rule);
+  });
+  rules.sort(function(a,b){ return a-b; });
+  return rules.map(function(n){ return '제'+n+'수칙'; }).join(', ');
+}
+function jsonpCall(params){
+  return new Promise(function(resolve){
+    var cbName = 'jsonp_cb_'+Date.now();
+    var script = document.createElement('script');
+    var done = false;
+    var timer = setTimeout(function(){
+      if(done) return; done=true;
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      resolve({ok:false});
+    }, 10000);
+    window[cbName] = function(data){
+      if(done) return; done=true;
+      clearTimeout(timer);
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      resolve(data);
+    };
+    script.onerror = function(){ if(done) return; done=true; clearTimeout(timer); resolve({ok:false}); };
+    script.src = API_URL+'?callback='+cbName+'&'+params;
+    document.head.appendChild(script);
+  });
+}
+async function sd(entry){
+  try{
+    var params = buildParams({
+      action:'save',
+      id:entry.id, plate:entry.plate, activity:entry.activity||'',
+      types:typeLabels(entry.types),
+      cat:catLabel(entry.types),
+      rule:ruleLabels(entry.types),
+      zone:entry.zone,
+      detail:entry.detail||'',
+      org:entry.org||'',
+      severity:sevLabel(entry.severity),
+      note:entry.note||'',
+      reporter:entry.reporter||'',
+      timestamp:entry.timestamp
+    });
+    var res = await jsonpCall(params);
+    if(res && res.ok) showToast('저장 완료','ok');
+    else showToast('저장 실패: 응답 오류','err');
+  }catch(e){ showToast('저장 실패: '+e.message,'err'); }
+}
+function renameInDB(field, oldVal, newVal){
+  // 로컬 viols 업데이트
+  viols.forEach(function(v){
+    if(field==='zone' && v.zone===oldVal) v.zone=newVal;
+    if(field==='activity' && v.activity===oldVal) v.activity=newVal;
+    if(field==='activity' && v.activity==='기타: '+oldVal) v.activity='기타: '+newVal;
+  });
+  // Google Sheets 업데이트
+  jsonpCall(buildParams({
+    action:'rename',
+    field:field,
+    oldVal:oldVal,
+    newVal:newVal
+  })).then(function(res){
+    if(res && res.ok){
+      showToast('DB 업데이트 완료 ('+res.updated+'건)','ok');
+    }
+  }).catch(function(){
+    showToast('로컬은 수정됐으나 DB 업데이트 실패','warn');
+  });
+}
+
+
+async function sdDelete(id){
+  try{
+    await jsonpCall(buildParams({action:'delete',id:id}));
+  }catch(e){ showToast('삭제 실패: '+e.message,'err'); }
+}
+
+function setDefaultDatetime(){
+  var dt = document.getElementById('fdt');
+  if(!dt) return;
+  var now = new Date();
+  // datetime-local value format: YYYY-MM-DDTHH:MM
+  var y = now.getFullYear();
+  var mo = String(now.getMonth()+1).padStart(2,'0');
+  var d = String(now.getDate()).padStart(2,'0');
+  var h = String(now.getHours()).padStart(2,'0');
+  var mi = String(now.getMinutes()).padStart(2,'0');
+  dt.value = y+'-'+mo+'-'+d+'T'+h+':'+mi;
+}
+
+var entryPhotos = []; // base64 배열
+
+function photoFileSelect(e){
+  var files = Array.from(e.target.files);
+  files.forEach(function(f){ addPhoto(f); });
+  e.target.value = '';
+}
+function photoDragOver(e){ e.preventDefault(); document.getElementById('photo-zone').classList.add('drag-over'); }
+function photoDragLeave(e){ document.getElementById('photo-zone').classList.remove('drag-over'); }
+function photoDrop(e){
+  e.preventDefault();
+  document.getElementById('photo-zone').classList.remove('drag-over');
+  var files = Array.from(e.dataTransfer.files).filter(function(f){ return f.type.startsWith('image/'); });
+  files.forEach(function(f){ addPhoto(f); });
+}
+function addPhoto(file){
+  if(entryPhotos.length >= 2){ showToast('사진은 최대 2장까지 등록할 수 있어요.','warn'); return; }
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var canvas = document.createElement('canvas');
+    var img = new Image();
+    img.onload = function(){
+      var MAX = 1200;
+      var w = img.width, h = img.height;
+      if(w > MAX || h > MAX){
+        if(w > h){ h = Math.round(h*MAX/w); w = MAX; }
+        else { w = Math.round(w*MAX/h); h = MAX; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var b64 = canvas.toDataURL('image/jpeg', 0.75);
+      entryPhotos.push(b64);
+      renderPhotoPreview();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function removePhoto(idx){
+  entryPhotos.splice(idx, 1);
+  renderPhotoPreview();
+}
+function renderPhotoPreview(){
+  var grid = document.getElementById('photo-preview');
+  if(!grid) return;
+  grid.innerHTML = entryPhotos.map(function(b64, i){
+    return '<div class="photo-wrap">'
+      +'<img src="'+b64+'">'
+      +'<button class="photo-del" onclick="removePhoto('+i+')">×</button>'
+      +'</div>';
+  }).join('');
+}
+// 클립보드 붙여넣기 (PC)
+document.addEventListener('paste', function(e){
+  if(document.getElementById('tab-entry').classList.contains('active')){
+    var items = Array.from(e.clipboardData.items||[]);
+    items.forEach(function(item){
+      if(item.type.startsWith('image/')){ addPhoto(item.getAsFile()); }
+    });
+  }
+});
+
+
+function buildOrgList(){ buildAutoLists(); }
+function buildAutoLists(){
+  function fill(id, vals){
+    var dl=document.getElementById(id); if(!dl) return;
+    dl.innerHTML=vals.map(function(v){ return '<option value="'+v+'">'; }).join('');
+  }
+  var plates={}, orgs={}, reporters={};
+  viols.forEach(function(v){
+    if(v.plate    && v.plate.trim())    plates[v.plate.trim()]=1;
+    if(v.org      && v.org.trim())      orgs[v.org.trim()]=1;
+    if(v.reporter && v.reporter.trim()) reporters[v.reporter.trim()]=1;
+  });
+  fill('plate-list',    Object.keys(plates).sort());
+  fill('org-list',      Object.keys(orgs).sort());
+  fill('reporter-list', Object.keys(reporters).sort());
+}
+function buildAutoLists(){
+  function fill(id, vals){
+    var dl=document.getElementById(id); if(!dl) return;
+    dl.innerHTML=vals.map(function(v){ return '<option value="'+v+'">'; }).join('');
+  }
+  var plates={}, orgs={}, reporters={};
+  viols.forEach(function(v){
+    if(v.plate && v.plate.trim()) plates[v.plate.trim()]=1;
+    if(v.org   && v.org.trim())   orgs[v.org.trim()]=1;
+    if(v.reporter && v.reporter.trim()) reporters[v.reporter.trim()]=1;
+  });
+  fill('plate-list',    Object.keys(plates).sort());
+  fill('org-list',      Object.keys(orgs).sort());
+  fill('reporter-list', Object.keys(reporters).sort());
+}
+
+
+
+function setDefaultDT(){
+  var dt = document.getElementById('fdt');
+  if(!dt) return;
+  var now = new Date();
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  dt.value = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+'T'+pad(now.getHours())+':'+pad(now.getMinutes());
+}
+
+var CARFIND_URL = 'https://cs.hshi.co.kr/carfind/main.jsp';
+var cfResults = []; // 조회 결과 캐시
+
+function openCarFindSystem(){
+  var plate = document.getElementById('carfind-input').value.replace(/\s/g,'').toUpperCase();
+  var url = CARFIND_URL + (plate ? '?carNo='+encodeURIComponent(plate) : '');
+  var win = window.open(url,'carfind','width=900,height=700');
+  // 창이 로드된 후 입력 필드에 차량번호 자동 입력 시도
+  if(plate && win){
+    var attempts = 0;
+    var timer = setInterval(function(){
+      attempts++;
+      try{
+        var doc = win.document;
+        if(doc && doc.readyState === 'complete'){
+          clearInterval(timer);
+          // 다양한 input 선택자 시도
+          var inputs = doc.querySelectorAll('input[type="text"], input[name*="car"], input[id*="car"], input[name*="Car"], input[id*="Car"]');
+          if(inputs.length > 0){
+            inputs[0].value = plate;
+            inputs[0].dispatchEvent(new Event('input',{bubbles:true}));
+            inputs[0].dispatchEvent(new Event('change',{bubbles:true}));
+          }
+        }
+      }catch(e){
+        // 크로스도메인 제한으로 접근 불가한 경우 — 클립보드에 복사
+        clearInterval(timer);
+        if(navigator.clipboard){
+          navigator.clipboard.writeText(plate).then(function(){
+            showToast(plate+' 클립보드에 복사됐어요. 조회창에 붙여넣기(Ctrl+V) 해주세요.','ok');
+          });
+        }
+      }
+      if(attempts >= 20) clearInterval(timer);
+    }, 300);
+  }
+}
+function normalizePlate(el){
+  el.value = el.value.replace(/\s/g,'').toUpperCase();
+}
+function normalizeCFInput(el){
+  el.value = el.value.replace(/\s/g,'').toUpperCase();
+}
+
+function openCarFind(){
+  var modal = document.getElementById('carfind-modal');
+  modal.style.display='flex';
+  document.getElementById('carfind-input').focus();
+  // 현재 차량번호 입력값이 있으면 자동으로 채워줌
+  var cur = document.getElementById('fp').value.replace(/\s/g,'');
+  if(cur){ document.getElementById('carfind-input').value=cur; }
+}
+function closeCarFind(){
+  document.getElementById('carfind-modal').style.display='none';
+  document.getElementById('carfind-result').innerHTML='<div style="text-align:center;color:#aaa;font-size:13px;padding:2rem 0">차량번호를 입력 후 조회하세요</div>';
+  document.getElementById('carfind-input').value='';
+}
+
+function searchCar(){
+  var q = document.getElementById('carfind-input').value.replace(/\s/g,'').toUpperCase();
+  var res = document.getElementById('carfind-result');
+  res.innerHTML = '';
+  if(!q){
+    res.innerHTML='<div style="text-align:center;color:#aaa;font-size:13px;padding:1rem 0">차량번호를 입력해주세요</div>';
+    return;
+  }
+  var matches = viols.filter(function(v){
+    return v.plate && v.plate.replace(/\s/g,'').toUpperCase().indexOf(q)>=0;
+  }).sort(function(a,b){ return new Date(b.timestamp)-new Date(a.timestamp); });
+
+  // 차량별 그룹: 전체 건수 + 최근 3건 이력
+  var plateMap={};
+  matches.forEach(function(v){
+    var p=v.plate.replace(/\s/g,'').toUpperCase();
+    if(!plateMap[p]) plateMap[p]={plate:p, total:0, recents:[], org:v.org||'', reporter:v.reporter||''};
+    plateMap[p].total++;
+    if(plateMap[p].recents.length<3) plateMap[p].recents.push(v);
+  });
+  var unique = Object.values(plateMap);
+
+  if(!unique.length){
+    var wrap = document.createElement('div');
+    wrap.style.padding='12px 0';
+    var msg = document.createElement('div');
+    msg.style.cssText='font-size:13px;color:#aaa;text-align:center;margin-bottom:12px';
+    msg.textContent='이력에서 일치하는 차량이 없습니다';
+    var banner = document.createElement('div');
+    banner.style.cssText='background:#FAEEDA;border-radius:8px;padding:10px 14px;font-size:12px;color:#BA7517';
+    banner.innerHTML='사내 시스템에서 조회하려면 아래 버튼을 눌러 확인 후 차량번호를 직접 입력해주세요.<br><br>';
+    var btn = document.createElement('button');
+    btn.textContent='🔗 차량 조회 시스템 열기';
+    btn.style.cssText='padding:7px 14px;border-radius:7px;border:1.5px solid #BA7517;background:#fff;color:#BA7517;font-size:12px;cursor:pointer;font-family:inherit';
+    btn.onclick=openCarFindSystem;
+    banner.appendChild(btn);
+    wrap.appendChild(msg); wrap.appendChild(banner);
+    res.appendChild(wrap);
+    return;
+  }
+
+  var hint = document.createElement('div');
+  hint.style.cssText='font-size:11px;color:#aaa;margin-bottom:8px';
+  hint.textContent='이력 내 일치 차량 '+unique.length+'종 · 더블클릭하여 선택';
+  res.appendChild(hint);
+
+  unique.forEach(function(v){
+    var wrap = document.createElement('div');
+    wrap.style.cssText='border:0.5px solid #e0e0dc;border-radius:8px;overflow:hidden;margin-bottom:8px';
+
+    // 헤더 행 (더블클릭으로 선택)
+    var header = document.createElement('div');
+    header.style.cssText='padding:10px 12px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:10px';
+    header.innerHTML=
+      '<div style="font-family:monospace;font-size:16px;font-weight:600;min-width:90px">'+v.plate+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +(v.org?'<div style="font-size:12px;color:#555;font-weight:500">'+v.org+'</div>':'')
+      +(v.reporter?'<div style="font-size:12px;color:#666">'+v.reporter+'</div>':'')
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0">'
+      +'<div style="font-size:18px;font-weight:600;color:#E24B4A;line-height:1">'+v.total+'</div>'
+      +'<div style="font-size:10px;color:#aaa">전체건</div>'
+      +'</div>';
+    header.addEventListener('mouseenter',function(){ header.style.background='#E6F1FB'; });
+    header.addEventListener('mouseleave',function(){ header.style.background='#fff'; });
+    header.addEventListener('dblclick',function(){ selectPlate(v.plate, v.org, v.reporter); });
+    wrap.appendChild(header);
+
+    // 최근 3건 이력
+    if(v.recents.length){
+      var recDiv = document.createElement('div');
+      recDiv.style.cssText='border-top:0.5px solid #e0e0dc;background:#fafafa;padding:8px 12px;display:grid;gap:4px';
+      v.recents.forEach(function(r, i){
+        var typeLabels = r.types.map(function(t){ var x=VT.find(function(a){ return a.id===t; }); return x?x.label:t; }).join(', ');
+        var row = document.createElement('div');
+        row.style.cssText='display:flex;gap:8px;align-items:center;font-size:11px';
+        row.innerHTML='<span style="color:#aaa;flex-shrink:0">'+fmtS(r.timestamp)+'</span>'
+          +'<span style="color:#666;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+typeLabels+'</span>'
+          +(r.zone?'<span style="color:#aaa;flex-shrink:0">'+r.zone+'</span>':'');
+        recDiv.appendChild(row);
+      });
+      var dblHint = document.createElement('div');
+      dblHint.style.cssText='text-align:right;font-size:10px;color:#185FA5;margin-top:4px';
+      dblHint.textContent='차량번호 행 더블클릭 → 자동 입력';
+      recDiv.appendChild(dblHint);
+      wrap.appendChild(recDiv);
+    }
+    res.appendChild(wrap);
+  });
+
+  var footer = document.createElement('div');
+  footer.style.cssText='margin-top:10px;padding:10px 12px;border-radius:8px;background:#f5f5f3;font-size:12px;color:#888;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  footer.innerHTML='원하는 차량이 없으면 사내 시스템에서 확인:';
+  var fbtn = document.createElement('button');
+  fbtn.textContent='차량 조회 시스템 열기';
+  fbtn.style.cssText='padding:3px 10px;border-radius:5px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:11px;cursor:pointer;font-family:inherit';
+  fbtn.onclick=openCarFindSystem;
+  footer.appendChild(fbtn);
+  res.appendChild(footer);
+}
+
+
+function selectPlate(plate, org, reporter){
+  plate = plate.replace(/\s/g,'').toUpperCase();
+  document.getElementById('fp').value = plate;
+  if(org){
+    var forg = document.getElementById('forg');
+    if(forg && !forg.value) forg.value = org;
+    else if(forg) forg.value = org;
+  }
+  if(reporter){
+    var fr = document.getElementById('fr');
+    if(fr) fr.value = reporter;
+  }
+  closeCarFind();
+  var msg = plate;
+  if(org) msg += ' · '+org;
+  if(reporter) msg += ' · '+reporter;
+  showToast(msg+' 자동 입력됐어요.','ok');
+}
+
+function useNewPlate(){
+  var q = document.getElementById('carfind-input').value.replace(/\s/g,'').toUpperCase();
+  if(q) document.getElementById('fp').value = q;
+  closeCarFind();
+  document.getElementById('fp').focus();
+}
+
+
+function init(){
+  // UI 먼저 즉시 표시
+  buildTG(); buildZone(); buildSev(); buildFilters(); buildActivityList();
+  setDefaultDatetime();
+  updHdr(); renderHist(); renderStats();
+  // 데이터 백그라운드 로딩
+  showBanner('스프레드시트에서 데이터 불러오는 중...', 'info');
+  ld().then(function(data){
+    viols = data;
+    updHdr(); renderHist(); renderStats();
+    buildOrgList();
+    if(data.length > 0) showToast('데이터 '+data.length+'건 불러왔어요.','ok');
+    hideBanner();
+  });
+}
+
+function updHdr(){
+  document.getElementById('hsub').textContent='교통안전 모니터링 · 총 '+viols.length+'건 기록됨';
+  var badge = document.getElementById('header-badge');
+  if(badge){
+    var hs = viols.filter(function(v){ return v.severity==='high'; }).length;
+    if(hs>0){ badge.textContent=hs+'건 심각'; badge.style.display='block'; }
+    else badge.style.display='none';
+  }
+}
+
+function buildTG(){
+  var cats={};
+  VT.forEach(function(v){ if(!cats[v.cat]) cats[v.cat]=[]; cats[v.cat].push(v); });
+  var h='';
+  Object.keys(cats).forEach(function(cat){
+    h+='<div class="cgrp"><div class="cat-lbl" style="color:'+CC[cat]+'"><span class="cdot" style="background:'+CC[cat]+'"></span>'+cat+'</div><div class="pgrid">';
+    cats[cat].forEach(function(vt){ h+='<button class="pill" id="pill-'+vt.id+'" onclick="togT(\''+vt.id+'\')">'+vt.label+'</button>'; });
+    h+='</div></div>';
+  });
+  document.getElementById('tgrid').innerHTML=h;
+}
+
+function buildActivityList(){
+  var sel=document.getElementById('factivity');
+  if(!sel) return;
+  var cur=sel.value;
+  sel.innerHTML='<option value="">-- 선택해주세요 --</option>'
+    +ACTIVITIES.map(function(a){ return '<option value="'+a+'"'+(a===cur?' selected':'')+'>'+a+'</option>'; }).join('');
+}
+function onActivityChange(){
+  var v=document.getElementById('factivity').value;
+  var etcBlock=document.getElementById('activity-etc-block');
+  if(etcBlock) etcBlock.style.display=(v==='기타'?'block':'none');
+  if(v!=='기타'){ var ei=document.getElementById('factivity-etc'); if(ei) ei.value=''; }
+}
+function saveActivities(){
+  localStorage.setItem('activities', JSON.stringify(ACTIVITIES));
+  buildActivityList();
+  renderAdminActivities();
+}
+function saveZones(){
+  localStorage.setItem('zones', JSON.stringify(ZONES));
+  buildZone();
+  renderAdminZones();
+}
+
+function checkAdminPW(){
+  var pw=document.getElementById('admin-pw-input').value;
+  if(pw===ADMIN_PW){
+    document.getElementById('admin-lock').style.display='none';
+    document.getElementById('admin-panel').style.display='block';
+    renderAdminActivities();
+    renderAdminZones();
+  } else {
+    showToast('비밀번호가 올바르지 않습니다.','err');
+    document.getElementById('admin-pw-input').value='';
+  }
+}
+
+function changePW(){
+  var p1=document.getElementById('new-pw1').value;
+  var p2=document.getElementById('new-pw2').value;
+  if(!p1){ showToast('비밀번호를 입력해주세요.','warn'); return; }
+  if(p1!==p2){ showToast('비밀번호가 일치하지 않습니다.','err'); return; }
+  ADMIN_PW=p1;
+  localStorage.setItem('admin_pw',p1);
+  document.getElementById('new-pw1').value='';
+  document.getElementById('new-pw2').value='';
+  showToast('비밀번호가 변경됐어요.','ok');
+}
+
+function renderAdminActivities(){
+  var el=document.getElementById('activity-list-admin');
+  if(!el) return;
+  if(!ACTIVITIES.length){ el.innerHTML='<div style="color:#aaa;font-size:13px;padding:8px 0">항목이 없습니다</div>'; return; }
+  el.innerHTML='';
+  ACTIVITIES.forEach(function(a,i){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:0.5px solid #f0efea';
+    row.id='act-row-'+i;
+    row.innerHTML=
+      '<span id="act-lbl-'+i+'" style="flex:1;font-size:13px">'+a+'</span>'
+      +'<input id="act-inp-'+i+'" type="text" value="'+a+'" style="flex:1;display:none;font-size:13px;padding:4px 8px;border:0.5px solid #ccc;border-radius:5px">'
+      +'<button onclick="editActivity('+i+')" id="act-edit-btn-'+i+'" style="padding:3px 10px;border-radius:5px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:11px;cursor:pointer;font-family:inherit">수정</button>'
+      +'<button onclick="saveActivity('+i+')" id="act-save-btn-'+i+'" style="display:none;padding:3px 10px;border-radius:5px;border:0.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:11px;cursor:pointer;font-family:inherit">저장</button>'
+      +'<button onclick="removeActivity('+i+')" style="padding:3px 10px;border-radius:5px;border:0.5px solid #f0959588;background:#FCEBEB;color:#A32D2D;font-size:11px;cursor:pointer;font-family:inherit">삭제</button>';
+    el.appendChild(row);
+  });
+}
+function editActivity(i){
+  document.getElementById('act-lbl-'+i).style.display='none';
+  document.getElementById('act-inp-'+i).style.display='block';
+  document.getElementById('act-edit-btn-'+i).style.display='none';
+  document.getElementById('act-save-btn-'+i).style.display='block';
+  document.getElementById('act-inp-'+i).focus();
+}
+function saveActivity(i){
+  var oldVal=ACTIVITIES[i];
+  var newVal=document.getElementById('act-inp-'+i).value.trim();
+  if(!newVal){ showToast('빈 값은 저장할 수 없어요.','warn'); return; }
+  if(newVal===oldVal){ renderAdminActivities(); return; }
+  ACTIVITIES[i]=newVal;
+  saveActivities();
+  if(oldVal!==newVal) renameInDB('activity', oldVal, newVal);
+  showToast('"'+oldVal+'" → "'+newVal+'" 수정됐어요.','ok');
+}
+
+function addActivity(){
+  var v=document.getElementById('new-activity').value.trim();
+  if(!v){ showToast('활동 유형을 입력해주세요.','warn'); return; }
+  if(ACTIVITIES.indexOf(v)>=0){ showToast('이미 있는 항목이에요.','warn'); return; }
+  ACTIVITIES.push(v);
+  document.getElementById('new-activity').value='';
+  saveActivities();
+  showToast(v+' 추가됐어요.','ok');
+}
+function removeActivity(i){
+  ACTIVITIES.splice(i,1);
+  saveActivities();
+}
+
+function renderAdminZones(){
+  var el=document.getElementById('zone-list-admin');
+  if(!el) return;
+  el.innerHTML='';
+  ZONES.forEach(function(z,i){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:0.5px solid #f0efea';
+    row.innerHTML=
+      '<span id="zone-lbl-'+i+'" style="flex:1;font-size:13px">'+z+'</span>'
+      +'<input id="zone-inp-'+i+'" type="text" value="'+z+'" style="flex:1;display:none;font-size:13px;padding:4px 8px;border:0.5px solid #ccc;border-radius:5px">'
+      +'<button onclick="editZone('+i+')" id="zone-edit-btn-'+i+'" style="padding:3px 10px;border-radius:5px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:11px;cursor:pointer;font-family:inherit">수정</button>'
+      +'<button onclick="saveZoneItem('+i+')" id="zone-save-btn-'+i+'" style="display:none;padding:3px 10px;border-radius:5px;border:0.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:11px;cursor:pointer;font-family:inherit">저장</button>'
+      +'<button onclick="removeZone('+i+')" style="padding:3px 10px;border-radius:5px;border:0.5px solid #f0959588;background:#FCEBEB;color:#A32D2D;font-size:11px;cursor:pointer;font-family:inherit">삭제</button>';
+    el.appendChild(row);
+  });
+}
+function editZone(i){
+  document.getElementById('zone-lbl-'+i).style.display='none';
+  document.getElementById('zone-inp-'+i).style.display='block';
+  document.getElementById('zone-edit-btn-'+i).style.display='none';
+  document.getElementById('zone-save-btn-'+i).style.display='block';
+  document.getElementById('zone-inp-'+i).focus();
+}
+function saveZoneItem(i){
+  var oldVal=ZONES[i];
+  var newVal=document.getElementById('zone-inp-'+i).value.trim();
+  if(!newVal){ showToast('빈 값은 저장할 수 없어요.','warn'); return; }
+  if(newVal===oldVal){ renderAdminZones(); return; }
+  ZONES[i]=newVal;
+  saveZones();
+  renameInDB('zone', oldVal, newVal);
+  showToast('"'+oldVal+'" → "'+newVal+'" 수정됐어요.','ok');
+}
+
+function addZone(){
+  var v=document.getElementById('new-zone').value.trim();
+  if(!v){ showToast('장소명을 입력해주세요.','warn'); return; }
+  if(ZONES.indexOf(v)>=0){ showToast('이미 있는 항목이에요.','warn'); return; }
+  ZONES.splice(ZONES.length-1, 0, v); // 기타 앞에 삽입
+  document.getElementById('new-zone').value='';
+  saveZones();
+  showToast(v+' 추가됐어요.','ok');
+}
+function removeZone(i){
+  ZONES.splice(i,1);
+  saveZones();
+}
+
+
+function buildZone(){
+  var dl=document.getElementById('zone-list');
+  if(!dl) return;
+  dl.innerHTML=ZONES.map(function(z){ return '<option value="'+z+'">'; }).join('');
+}
+
+function buildSev(){
+  var row=document.getElementById('sevrow'); row.innerHTML='';
+  Object.keys(SEV).forEach(function(id){
+    var s=SEV[id], b=document.createElement('button');
+    b.className='sevbtn'+(id===curSev?' on':'');
+    b.textContent=s.l;
+    if(id===curSev){ b.style.borderColor=s.c; b.style.background=s.b; b.style.color=s.c; }
+    b.onclick=function(){ curSev=id; buildSev(); };
+    row.appendChild(b);
+  });
+}
+
+function buildFilters(){
+  var ts=document.getElementById('fit');
+  var cats={};
+  VT.forEach(function(v){ if(!cats[v.cat]) cats[v.cat]=[]; cats[v.cat].push(v); });
+  Object.keys(cats).forEach(function(cat){
+    var og=document.createElement('optgroup'); og.label=cat;
+    cats[cat].forEach(function(vt){ var o=document.createElement('option'); o.value=vt.id; o.textContent=vt.label; og.appendChild(o); });
+    ts.appendChild(og);
+  });
+  var rs=document.getElementById('fir');
+  Object.keys(R12).forEach(function(n){ var o=document.createElement('option'); o.value=n; o.textContent='제'+n+'수칙 · '+R12[n]; rs.appendChild(o); });
+}
+
+function togT(id){
+  var idx=selT.indexOf(id);
+  if(idx>=0) selT.splice(idx,1); else selT.push(id);
+  var vt=VT.find(function(v){ return v.id===id; });
+  var pill=document.getElementById('pill-'+id);
+  if(selT.indexOf(id)>=0){ pill.style.borderColor=CC[vt.cat]; pill.style.background=CB[vt.cat]; pill.style.color=CC[vt.cat]; pill.innerHTML='✓ '+vt.label; }
+  else { pill.style.borderColor=''; pill.style.background=''; pill.style.color=''; pill.innerHTML=vt.label; }
+  updateRulePreview();
+}
+function updateRulePreview(){
+  var rules={};
+  selT.forEach(function(id){
+    var vt=VT.find(function(v){ return v.id===id; });
+    if(vt&&vt.rule) rules[vt.rule]=1;
+  });
+  var ruleNums=Object.keys(rules).map(Number).sort(function(a,b){return a-b;});
+  var box=document.getElementById('rule-preview');
+  var tags=document.getElementById('rule-preview-tags');
+  if(!box||!tags) return;
+  if(!ruleNums.length){ box.classList.remove('show'); return; }
+  box.classList.add('show');
+  tags.innerHTML=ruleNums.map(function(n){
+    return '<div class="rule-tag"><span class="rule-tag-num">제'+n+'수칙</span><span>'+R12[n]+'</span></div>';
+  }).join('');
+}
+
+async function doSave(){
+  var plate=document.getElementById('fp').value.replace(/\s/g,'').toUpperCase();
+  var rep=document.getElementById('fr').value.trim();
+  var activitySel=document.getElementById('factivity').value;
+  var activityEtc=document.getElementById('factivity-etc').value.trim();
+  var activity = activitySel==='기타' ? ('기타: '+activityEtc) : activitySel;
+  var zone=document.getElementById('fz').value;
+  var detail=document.getElementById('fdetail').value.trim();
+  var org=document.getElementById('forg').value.trim();
+  var note=document.getElementById('fn').value.trim();
+  var eb=document.getElementById('ferr');
+  if(!plate){ eb.textContent='차량번호를 입력해주세요.'; eb.style.display='block'; return; }
+  if(!selT.length){ eb.textContent='위반 유형을 하나 이상 선택해주세요.'; eb.style.display='block'; return; }
+  eb.style.display='none';
+    var dtVal = document.getElementById('fdt').value;
+  var ts = dtVal ? new Date(dtVal).toISOString() : new Date().toISOString();
+  var entry={id:Date.now().toString(),plate:plate,activity:activity,types:selT.slice(),zone:zone,detail:detail,org:org,severity:curSev,note:note,reporter:rep,timestamp:ts,photos:entryPhotos.slice()};
+  viols.unshift(entry);
+  updHdr();
+  var btn2=document.getElementById('savebtn');
+  btn2.textContent='저장 중...'; btn2.disabled=true;
+  await sd(entry);
+  btn2.disabled=false;
+  document.getElementById('factivity').value=''; document.getElementById('factivity-etc').value=''; document.getElementById('activity-etc-block').style.display='none'; document.getElementById('fp').value=''; document.getElementById('fr').value=''; document.getElementById('fn').value=''; document.getElementById('fdetail').value=''; document.getElementById('forg').value=''; document.getElementById('fz').value=''; entryPhotos=[]; renderPhotoPreview(); setDefaultDT(); buildOrgList(); updateRulePreview(); updateRulePreview();
+  selT=[]; curSev='low'; buildTG(); buildSev();
+  var btn=document.getElementById('savebtn');
+  btn.textContent='✓ 저장 완료'; btn.classList.add('ok');
+  setTimeout(function(){ btn.textContent='위반 기록 저장'; btn.classList.remove('ok'); },2500);
+  renderHist(); renderStats();
+}
+
+var TAB_TITLES = {entry:'위반 입력', history:'이력 조회', stats:'통계 현황', admin:'관리'};
+function switchTab(t){
+  document.querySelectorAll('.tc').forEach(function(c){ c.classList.remove('active'); });
+  document.getElementById('tab-'+t).classList.add('active');
+  document.querySelectorAll('.btab').forEach(function(b){ b.classList.remove('active'); });
+  var bt = document.getElementById('btab-'+t);
+  if(bt) bt.classList.add('active');
+  // 헤더 서브타이틀 유지, 헤더 타이틀 고정
+  if(t==='history') renderHist();
+  if(t==='stats') renderStats();
+  if(t==='admin'){ document.getElementById('admin-lock').style.display='block'; document.getElementById('admin-panel').style.display='none'; document.getElementById('admin-pw-input').value=''; }
+  // 스크롤 맨 위로
+  window.scrollTo(0,0);
+}
+
+function filterByRule(n){
+  // 통계 기간을 이력 조회 날짜 필터에 적용
+  var range = getDateRange(curPeriod);
+  switchTab('history');
+  setTimeout(function(){
+    var rsel=document.getElementById('fir');
+    if(rsel) rsel.value=String(n);
+    var hfrom=document.getElementById('hfrom');
+    var hto=document.getElementById('hto');
+    if(hfrom && hto){
+      if(range){
+        var pad=function(n){ return String(n).padStart(2,'0'); };
+        var s=range.start, e=range.end;
+        hfrom.value=s.getFullYear()+'-'+pad(s.getMonth()+1)+'-'+pad(s.getDate());
+        hto.value=e.getFullYear()+'-'+pad(e.getMonth()+1)+'-'+pad(e.getDate());
+      } else {
+        hfrom.value=''; hto.value='';
+      }
+    }
+    renderHist();
+  },50);
+}
+
+function renderHist(){
+  var fp=document.getElementById('fip').value.trim().toUpperCase();
+  var ft=document.getElementById('fit').value;
+  var fs=document.getElementById('fis').value;
+  var fr=document.getElementById('fir').value;
+  var hfrom=document.getElementById('hfrom').value;
+  var hto=document.getElementById('hto').value;
+  var f=viols.filter(function(v){
+    if(fp&&v.plate.indexOf(fp)<0) return false;
+    if(ft&&v.types.indexOf(ft)<0) return false;
+    if(fs&&v.severity!==fs) return false;
+    if(hfrom){ var d=new Date(v.timestamp); var s=new Date(hfrom); s.setHours(0,0,0,0); if(d<s) return false; }
+    if(hto){ var d2=new Date(v.timestamp); var e=new Date(hto); e.setHours(23,59,59,999); if(d2>e) return false; }
+    if(fr==='mapped'){ if(!v.types.some(function(t){ var x=VT.find(function(a){ return a.id===t; }); return x&&x.rule; })) return false; }
+    else if(fr==='none'){ if(v.types.some(function(t){ var x=VT.find(function(a){ return a.id===t; }); return x&&x.rule; })) return false; }
+    else if(fr){ var rn=parseInt(fr); if(!v.types.some(function(t){ var x=VT.find(function(a){ return a.id===t; }); return x&&x.rule===rn; })) return false; }
+    return true;
+  });
+  document.getElementById('fcnt').textContent=f.length+'건 / 전체 '+viols.length+'건';
+  var list=document.getElementById('hlist');
+  if(!f.length){ list.innerHTML='<div class="empty">'+(viols.length?'검색 결과가 없습니다.':'아직 위반 기록이 없습니다.\n위반 입력 탭에서 기록을 추가하세요.')+'</div>'; return; }
+  list.innerHTML=f.map(function(v){
+    var s=SEV[v.severity]||SEV.low;
+    var prev=v.types.slice(0,3).map(function(t){ var x=VT.find(function(a){ return a.id===t; }); return x?'<span class="badge" style="background:'+CB[x.cat]+';color:'+CC[x.cat]+';border:0.5px solid '+CC[x.cat]+'44">'+x.label+'</span>':''; }).join('')+(v.types.length>3?'<span style="font-size:11px;color:#aaa">+'+(v.types.length-3)+'</span>':'');
+    var all=v.types.map(function(t){ var x=VT.find(function(a){ return a.id===t; }); return x?'<span class="badge" style="background:'+CB[x.cat]+';color:'+CC[x.cat]+';border:0.5px solid '+CC[x.cat]+'44">'+x.label+'</span>':''; }).join('');
+    var rns=[]; v.types.forEach(function(t){ var x=VT.find(function(a){ return a.id===t; }); if(x&&x.rule&&rns.indexOf(x.rule)<0) rns.push(x.rule); }); rns.sort(function(a,b){ return a-b; });
+    var rbadges=rns.length?'<div style="margin-bottom:10px"><div class="dlbl" style="margin-bottom:4px">12대 수칙</div><div class="hbadges">'+rns.map(function(n){ return '<span class="rbadge">제'+n+'수칙 <span>'+R12[n]+'</span></span>'; }).join('')+'</div></div>':'';
+    var rprev=rns.length?'<span style="font-size:10px;color:#185FA5;background:#E6F1FB;border-radius:4px;padding:1px 6px;border:0.5px solid #185FA544">제'+rns.join('·')+'수칙</span>':'';
+    var isOpen=expId===v.id, isDel=delId===v.id;
+    return '<div class="hitem">'
+      +'<div class="hrow" onclick="togExp(\''+v.id+'\')">'
+      +'<div class="sevbar" style="background:'+s.c+'"></div>'
+      +'<div class="hmeta"><div class="htop">'
+      +'<span style="font-family:monospace;font-size:14px;font-weight:600">'+v.plate+'</span>'
+      +'<span class="badge" style="background:'+s.b+';color:'+s.c+';border:0.5px solid '+s.c+'55">'+s.l+'</span>'
+      +rprev
+      +'<span class="htime">'+fmtS(v.timestamp)+'</span>'
+      +'</div><div class="hbadges">'+prev+'</div></div>'
+      +'<div class="earrow">'+(isOpen?'▲':'▼')+'</div></div>'
+      +'<div class="hdetail'+(isOpen?' open':'')+'">'
+      +'<div class="dgrid">'
+      +(v.activity?'<div style="grid-column:1/-1"><div class="dlbl">점검 활동</div><div class="dval">'+v.activity+'</div></div>':'')
+      +'<div><div class="dlbl">일시</div><div class="dval">'+fmtF(v.timestamp)+'</div></div>'
+      +'<div><div class="dlbl">위반자</div><div class="dval">'+(v.reporter||'-')+'</div></div>'
+      +(v.org?'<div><div class="dlbl">위반조직</div><div class="dval">'+v.org+'</div></div>':'')
+      +'<div><div class="dlbl">위반장소</div><div class="dval">'+v.zone+(v.detail?' · '+v.detail:'')+'</div></div>'
+      +'</div>'
+      +'<div style="margin-bottom:10px"><div class="dlbl" style="margin-bottom:4px">위반 유형</div><div class="hbadges">'+all+'</div></div>'
+      +rbadges
+      +(v.note?'<div style="margin-bottom:10px"><div class="dlbl">비고</div><div style="font-size:13px;color:#666;line-height:1.5">'+v.note+'</div></div>':'')
+      +(v.photos&&v.photos.length?photoHtml(v.photos):'')
+      +'<div class="delarea">'
+      +(isDel?'<span style="font-size:12px;color:#666">삭제하시겠습니까?</span><button class="delcbtn" onclick="doDelete(\''+v.id+'\')">삭제</button><button class="delxbtn" onclick="cancelDel()">취소</button>'
+             :'<button class="delbtn" onclick="confDel(\''+v.id+'\')">기록 삭제</button>')
+      +'</div></div></div>';
+  }).join('');
+}
+
+function photoHtml(photos){
+  var thumbs = photos.map(function(b64, i){
+    return '<div class="photo-wrap" onclick="viewPhotoArr('+JSON.stringify(photos)+','+i+')" style="cursor:zoom-in"><img src="'+b64+'"></div>';
+  }).join('');
+  return '<div style="margin-bottom:10px"><div class="dlbl" style="margin-bottom:6px">사진 ('+photos.length+'장)</div><div class="photo-grid">'+thumbs+'</div></div>';
+}
+
+
+function viewPhotoArr(photos, idx){
+  var cur = idx||0;
+  var ov = document.createElement('div');
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px';
+  function render(){
+    ov.innerHTML='';
+    var img=document.createElement('img');
+    img.style.cssText='max-width:92%;max-height:82vh;border-radius:8px;';
+    img.src=photos[cur];
+    ov.appendChild(img);
+    if(photos.length>1){
+      var nav=document.createElement('div');
+      nav.style.cssText='display:flex;gap:16px;align-items:center';
+      var prev=document.createElement('button');
+      prev.textContent='◀';
+      prev.style.cssText='padding:8px 16px;border-radius:7px;border:0.5px solid #fff5;background:transparent;color:#fff;font-size:16px;cursor:pointer';
+      prev.onclick=function(e){ e.stopPropagation(); cur=(cur-1+photos.length)%photos.length; render(); };
+      var cnt=document.createElement('span');
+      cnt.textContent=(cur+1)+'/'+photos.length;
+      cnt.style.cssText='color:#fff;font-size:13px;min-width:40px;text-align:center';
+      var next=document.createElement('button');
+      next.textContent='▶';
+      next.style.cssText='padding:8px 16px;border-radius:7px;border:0.5px solid #fff5;background:transparent;color:#fff;font-size:16px;cursor:pointer';
+      next.onclick=function(e){ e.stopPropagation(); cur=(cur+1)%photos.length; render(); };
+      nav.appendChild(prev); nav.appendChild(cnt); nav.appendChild(next);
+      ov.appendChild(nav);
+    }
+    var close=document.createElement('button');
+    close.textContent='닫기';
+    close.style.cssText='padding:7px 20px;border-radius:7px;border:0.5px solid #fff5;background:transparent;color:#aaa;font-size:12px;cursor:pointer';
+    close.onclick=function(){ document.body.removeChild(ov); };
+    ov.appendChild(close);
+  }
+  render();
+  ov.onclick=function(e){ if(e.target===ov) document.body.removeChild(ov); };
+  document.body.appendChild(ov);
+}
+
+
+function clearHistDate(){
+  document.getElementById('hfrom').value='';
+  document.getElementById('hto').value='';
+  renderHist();
+}
+function clearHistDate(){
+  document.getElementById('hfrom').value='';
+  document.getElementById('hto').value='';
+  renderHist();
+}
+
+function togExp(id){ expId=expId===id?null:id; delId=null; renderHist(); }
+function confDel(id){
+  var pw = prompt('삭제 권한 확인\n관리자 비밀번호를 입력하세요:');
+  if(pw === null) return;
+  if(pw !== ADMIN_PW){ showToast('비밀번호가 올바르지 않습니다.','err'); return; }
+  delId=id; renderHist();
+}
+function cancelDel(){ delId=null; renderHist(); }
+async function doDelete(id){
+  viols=viols.filter(function(v){ return v.id!==id; });
+  updHdr(); expId=null; delId=null; renderHist(); renderStats();
+  await sdDelete(id);
+}
+
+function setPeriod(p){
+  curPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(function(b){ b.classList.remove('active'); });
+  var map = {week:0,month:1,quarter:2,year:3,lastyear:4,all:5,custom:6};
+  var btns = document.querySelectorAll('.period-btn');
+  if(btns[map[p]]) btns[map[p]].classList.add('active');
+  var cr = document.getElementById('custom-range');
+  if(p==='custom'){
+    cr.classList.add('open');
+    // 기본값: 이번달
+    var now = new Date();
+    var y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0'), d = String(now.getDate()).padStart(2,'0');
+    var firstDay = y+'-'+m+'-01';
+    var today = y+'-'+m+'-'+d;
+    var cs = document.getElementById('custom-start');
+    var ce = document.getElementById('custom-end');
+    if(cs && !cs.value) cs.value = firstDay;
+    if(ce && !ce.value) ce.value = today;
+  } else {
+    cr.classList.remove('open');
+    renderStats();
+  }
+}
+
+function applyCustomRange(){
+  var cs = document.getElementById('custom-start').value;
+  var ce = document.getElementById('custom-end').value;
+  if(!cs || !ce){ showToast('시작일과 종료일을 모두 입력해주세요.','warn'); return; }
+  if(cs > ce){ showToast('시작일이 종료일보다 늦을 수 없어요.','warn'); return; }
+  curPeriod = 'custom';
+  renderStats();
+}
+
+function getDateRange(period){
+  var now = new Date();
+  var end = new Date(now); end.setHours(23,59,59,999);
+  var start;
+  if(period==='custom'){
+    var cs = document.getElementById('custom-start');
+    var ce = document.getElementById('custom-end');
+    if(!cs || !cs.value) return null;
+    start = new Date(cs.value); start.setHours(0,0,0,0);
+    end = new Date(ce.value); end.setHours(23,59,59,999);
+  } else if(period==='week'){ start=new Date(now); start.setDate(now.getDate()-6); start.setHours(0,0,0,0); }
+  else if(period==='month'){ start=new Date(now.getFullYear(),now.getMonth(),1); }
+  else if(period==='quarter'){ start=new Date(now); start.setMonth(now.getMonth()-2); start.setDate(1); start.setHours(0,0,0,0); }
+  else if(period==='year'){ start=new Date(now.getFullYear(),0,1); }
+  else if(period==='lastyear'){ start=new Date(now); start.setFullYear(now.getFullYear()-1); start.setHours(0,0,0,0); }
+  else { return null; }
+  return {start:start,end:end};
+}
+
+function fd(d){ return d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate(); }
+
+
+function renderStats(){
+  var range = getDateRange(curPeriod);
+  var fv = range
+    ? viols.filter(function(v){ var d=new Date(v.timestamp); return d>=range.start&&d<=range.end; })
+    : viols;
+
+  var rangeEl = document.getElementById('period-range');
+  if(rangeEl){
+    if(range) rangeEl.textContent = fd(range.start)+' ~ '+fd(range.end)+' ('+fv.length+'건)';
+    else rangeEl.textContent = '전체 기간 ('+fv.length+'건)';
+  }
+
+  var uv=(function(){ var s={}; fv.forEach(function(v){ s[v.plate]=1; }); return Object.keys(s).length; })();
+  var hs=fv.filter(function(v){ return v.severity==='high'; }).length;
+  var ms=fv.filter(function(v){ return v.severity==='mid'; }).length;
+  document.getElementById('sgrid').innerHTML=
+    '<div class="scard"><div class="slbl">위반 건수</div><div class="sval" style="color:#E24B4A">'+fv.length+'</div><div class="ssub">기간 내 기록</div></div>'
+   +'<div class="scard"><div class="slbl">위반 차량</div><div class="sval" style="color:#185FA5">'+uv+'</div><div class="ssub">고유 차량 수</div></div>'
+   +'<div class="scard"><div class="slbl">경고</div><div class="sval" style="color:#D85A30">'+ms+'</div><div class="ssub">경고 등급</div></div>'
+   +'<div class="scard"><div class="slbl">심각</div><div class="sval" style="color:#A32D2D">'+hs+'</div><div class="ssub">즉각 조치 필요</div></div>';
+
+  // 12대 수칙
+  var rc={};
+  fv.forEach(function(v){ v.types.forEach(function(t){ var x=VT.find(function(a){ return a.id===t; }); if(x&&x.rule) rc[x.rule]=(rc[x.rule]||0)+1; }); });
+  var maxR=Math.max.apply(null,Object.values(rc).concat([1]));
+  var totR=Object.values(rc).reduce(function(a,b){ return a+b; },0);
+  var gridH=Object.keys(R12).map(function(n){
+    var cnt=rc[n]||0, on=cnt>0;
+    return '<div class="rcell'+(on?' on':'')+'" onclick="filterByRule('+n+')" title="클릭 시 이력 필터">'
+      +'<div class="rcell-n">'+n+'</div><div class="rcell-nm">'+R12[n]+'</div>'
+      +'<div class="rcell-c">'+cnt+'</div><div class="rcell-u">건</div></div>';
+  }).join('');
+  var sortedR=Object.keys(R12).filter(function(n){ return rc[n]>0; }).sort(function(a,b){ return (rc[b]||0)-(rc[a]||0); });
+  var barsR=!sortedR.length?'<div style="color:#aaa;font-size:13px;padding:8px 0">데이터 없음</div>'
+    :sortedR.map(function(n){
+      return '<div class="brow"><div class="binfo"><div class="binfo-l">'
+        +'<span style="font-size:11px;font-weight:600;color:#185FA5;background:#E6F1FB;border-radius:4px;padding:1px 6px;display:inline-block;text-align:center;min-width:22px">제'+n+'</span>'
+        +'<span>'+R12[n]+'</span></div>'
+        +'<span style="color:#888;font-size:12px">'+rc[n]+'건</span></div>'
+        +'<div class="btrack"><div class="bfill" style="width:'+Math.round((rc[n]||0)/maxR*100)+'%;background:#185FA5"></div></div></div>';
+    }).join('');
+  document.getElementById('r12card').innerHTML=
+    '<div class="card"><div class="card-header"><div class="card-header-title">12대 수칙별 위반 현황</div>'
+    +'<div class="card-header-sub">수칙 해당 위반 '+totR+'건 · 번호 클릭 시 이력 필터</div></div>'
+    +'<div style="padding:14px 16px"><div class="rules-grid">'+gridH+'</div>'+barsR+'</div></div>';
+
+  // 상습 차량
+  var pc={}; fv.forEach(function(v){ pc[v.plate]=(pc[v.plate]||0)+1; });
+  var top=Object.entries(pc).sort(function(a,b){ return b[1]-a[1]; }).slice(0,8);
+  var maxC=top[0]?top[0][1]:1;
+  document.getElementById('offcard').innerHTML='<div class="card"><div class="card-header"><div class="card-header-title">상습 위반 차량</div><div class="card-header-sub">3건 이상 시 상습 분류</div></div>'
+    +(!top.length?'<div class="empty" style="padding:1.5rem">데이터 없음</div>'
+      :top.map(function(e,i){
+        var p=e[0],cnt=e[1],rep=cnt>=3,pct=Math.round(cnt/maxC*100);
+        return '<div class="orow"><div class="rankb" style="'+(i===0?'background:#FCEBEB;color:#A32D2D':'')+'">'+(i+1)+'</div>'
+          +'<div class="ometa"><div class="oplate">'+p+(rep?'<span class="badge" style="background:#FCEBEB;color:#A32D2D;border:0.5px solid #f0959588">상습</span>':'')+'</div>'
+          +'<div class="btrack"><div class="bfill" style="width:'+pct+'%;background:'+(rep?'#E24B4A':'#888')+'"></div></div></div>'
+          +'<div class="ocnt" style="color:'+(rep?'#A32D2D':'inherit')+'">'+cnt+'<span>건</span></div></div>';
+      }).join('')
+    )+'</div>';
+
+  // 카테고리
+  var cac={}; fv.forEach(function(v){ v.types.forEach(function(t){ var x=VT.find(function(a){ return a.id===t; }); if(x) cac[x.cat]=(cac[x.cat]||0)+1; }); });
+  var cae=Object.entries(cac).sort(function(a,b){ return b[1]-a[1]; });
+  var maxCa=cae[0]?cae[0][1]:1;
+  var totCa=cae.reduce(function(a,b){ return a+b[1]; },0)||1;
+  document.getElementById('catcard').innerHTML='<div class="card"><div class="card-header"><div class="card-header-title">카테고리별 위반 현황</div></div><div style="padding:14px 16px">'
+    +(!cae.length?'<div style="color:#aaa;font-size:13px">데이터 없음</div>'
+      :cae.map(function(e){
+        var cat=e[0],cnt=e[1];
+        return '<div class="brow"><div class="binfo"><div class="binfo-l"><span class="cdot" style="background:'+CC[cat]+'"></span><b>'+cat+'</b></div>'
+          +'<span style="color:#888">'+cnt+'건 ('+Math.round(cnt/totCa*100)+'%)</span></div>'
+          +'<div class="btrack"><div class="bfill" style="width:'+Math.round(cnt/maxCa*100)+'%;background:'+CC[cat]+'"></div></div></div>';
+      }).join('')
+    )+'</div></div>';
+
+  // 유형 상세
+  var tc={}; fv.forEach(function(v){ v.types.forEach(function(t){ tc[t]=(tc[t]||0)+1; }); });
+  var te=Object.entries(tc).sort(function(a,b){ return b[1]-a[1]; });
+  var maxT=te[0]?te[0][1]:1;
+  document.getElementById('typecard').innerHTML='<div class="card"><div class="card-header"><div class="card-header-title">위반 유형 상세</div></div><div style="padding:14px 16px">'
+    +(!te.length?'<div style="color:#aaa;font-size:13px">데이터 없음</div>'
+      :te.map(function(e,i){
+        var tid=e[0],cnt=e[1];
+        var x=VT.find(function(a){ return a.id===tid; }); if(!x) return '';
+        var rt=x.rule?'<span style="font-size:10px;color:#185FA5;background:#E6F1FB;border-radius:3px;padding:1px 4px;margin-left:4px">제'+x.rule+'수칙</span>':'';
+        return '<div class="trrow" style="opacity:'+(i>=5?0.7:1)+'">'
+          +'<div class="trnum">'+String(i+1).padStart(2,'0')+'</div>'
+          +'<div class="trmeta"><div class="trinfo"><span>'+x.label+rt+'</span><span style="color:#888;font-size:12px">'+cnt+'건</span></div>'
+          +'<div class="btrack" style="height:4px"><div class="bfill" style="width:'+Math.round(cnt/maxT*100)+'%;background:'+CC[x.cat]+'"></div></div></div></div>';
+      }).join('')
+    )+'</div></div>';
+}
+
+function fmtF(iso){
+  try{
+    var d=new Date(iso);
+    if(isNaN(d.getTime())) return String(iso).slice(0,16)||'날짜오류';
+    return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes());
+  }catch(e){ return String(iso)||'날짜오류'; }
+}
+function fmtS(iso){
+  try{
+    var d=new Date(iso);
+    if(isNaN(d.getTime())) return String(iso).slice(0,10)||'--';
+    return p2(d.getMonth()+1)+'/'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes());
+  }catch(e){ return '--'; }
+}
+function p2(n){ return String(n).padStart(2,'0'); }
+
+function showLoading(on){
+  var el=document.getElementById('loading');
+  if(el) el.style.display=on?'flex':'none';
+}
+function showBanner(msg, type){
+  var el=document.getElementById('top-banner');
+  if(!el) return;
+  el.textContent=msg;
+  el.style.display='block';
+}
+function hideBanner(){
+  var el=document.getElementById('top-banner');
+  if(el) el.style.display='none';
+}
+function showToast(msg,type){
+  var t=document.getElementById('toast');
+  if(!t) return;
+  t.textContent=msg;
+  t.style.background=type==='err'?'#FCEBEB':type==='warn'?'#FAEEDA':'#EAF3DE';
+  t.style.color=type==='err'?'#A32D2D':type==='warn'?'#BA7517':'#3B6D11';
+  t.style.border='0.5px solid '+(type==='err'?'#f09595':type==='warn'?'#EF9F27':'#97C459');
+  t.style.display='block';
+  setTimeout(function(){ t.style.display='none'; },3000);
+}
+init();
+</script>
+</body>
+</html>
