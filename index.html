@@ -326,8 +326,15 @@
     <div class="frow">
       <div class="f2">
         <label class="fl">위반장소</label>
-        <input type="text" id="fz" placeholder="장소 입력 또는 선택" list="zone-list" autocomplete="off">
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="fz" placeholder="장소 입력 또는 선택" list="zone-list" autocomplete="off" style="flex:1">
+          <button type="button" id="gps-btn" onclick="detectGPS()" title="GPS로 현재 위치 감지"
+            style="flex-shrink:0;padding:9px 10px;border-radius:10px;border:none;background:#E6F1FB;color:#185FA5;font-size:16px;cursor:pointer;line-height:1">
+            📍
+          </button>
+        </div>
         <datalist id="zone-list"></datalist>
+        <div id="gps-status" style="font-size:11px;color:#8e8e93;margin-top:4px;display:none"></div>
       </div>
       <div><label class="fl">심각도</label><div class="sevrow" id="sevrow"></div></div>
     </div>
@@ -543,11 +550,10 @@ var VT = [
   {id:'etc',            label:'기타',                       cat:'기타', rule:null},
 ];
 var R12 = {1:'난폭운전 금지',2:'무자격자 운전 금지',3:'휴대폰/이어폰 금지',4:'운전중 흡연 금지',5:'과속 금지',6:'주차 규정 준수',7:'적재함 탑승 금지',8:'적재물 고정',9:'중앙선 침범·추월 금지',10:'횡단보도 보행자 보호',11:'고장차량 안전 관리',12:'전조등 점등 의무'};
-var ACTIVITIES = JSON.parse(localStorage.getItem('activities') || JSON.stringify([
-  '정기 교통안전 점검','합동 안전점검','수시 점검','특별 점검','신고 접수','순찰 중 적발','기타'
-]));
+var ACTIVITIES = ['정기 교통안전 점검','합동 안전점검','수시 점검','특별 점검','신고 접수','순찰 중 적발','기타']; // config 시트에서 불러온 후 교체됨
 
-var ZONES = JSON.parse(localStorage.getItem('zones') || 'null') || [
+// ZONES: {name, lat, lng, radius(m)} — lat/lng null이면 GPS 미등록
+var ZONES_DEFAULT = [
   '1도크','1안벽','2도크','2안벽','D/H PE장','G/A장','R장','PE장','2PE장','3PE장',
   'M/UNIT장','가공공장','가공공장옥외','판넬공장','판넬공장옥외','대조립공장','대조립공장옥외',
   '#1~7도장공장','도장공장','#9도장공장','제2도장공장옥외','#8도장공장','산기도장공장옥외',
@@ -561,7 +567,9 @@ var ZONES = JSON.parse(localStorage.getItem('zones') || 'null') || [
   '돌핀안벽','남문안벽','대불3공장','대불4공장',
   '본관(정문)','지원관(건강증진센터)','도장관(북문)','생산관',
   '외업1관','외업2관','외업3관','기술교육원(서문)','동문','기타'
-];
+].map(function(n){ return {name:n, lat:null, lng:null, radius:80}; });
+
+var ZONES = ZONES_DEFAULT.slice(); // config 시트에서 불러온 후 교체됨
 var CC = {주차:'#185FA5',속도:'#A32D2D',통행:'#D85A30',안전:'#3B6D11',기타:'#5F5E5A'};
 var CB = {주차:'#E6F1FB',속도:'#FCEBEB',통행:'#FAECE7',안전:'#EAF3DE',기타:'#F1EFE8'};
 var SEV = {low:{l:'주의',c:'#BA7517',b:'#FAEEDA'},mid:{l:'경고',c:'#D85A30',b:'#FAECE7'},high:{l:'심각',c:'#A32D2D',b:'#FCEBEB'}};
@@ -862,6 +870,106 @@ function buildAutoLists(){
 
 
 
+// ── GPS 위치 감지 ──
+function calcDistance(lat1, lng1, lat2, lng2){
+  var R=6371000;
+  var dLat=(lat2-lat1)*Math.PI/180;
+  var dLng=(lng2-lng1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)
+    +Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)
+    *Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function detectGPS(){
+  if(!navigator.geolocation){
+    showToast('이 기기는 GPS를 지원하지 않아요.','warn'); return;
+  }
+  var btn=document.getElementById('gps-btn');
+  var status=document.getElementById('gps-status');
+  btn.textContent='⏳'; btn.disabled=true;
+  status.textContent='현재 위치 감지 중...'; status.style.display='block'; status.style.color='#8e8e93';
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      btn.textContent='📍'; btn.disabled=false;
+      var lat=pos.coords.latitude, lng=pos.coords.longitude;
+      var acc=Math.round(pos.coords.accuracy);
+
+      // GPS 등록된 구역과 거리 비교
+      var candidates=[];
+      ZONES.forEach(function(z){
+        var obj=typeof z==='object'?z:{name:z,lat:null,lng:null,radius:80};
+        if(obj.lat&&obj.lng){
+          var dist=Math.round(calcDistance(lat,lng,obj.lat,obj.lng));
+          candidates.push({name:obj.name, dist:dist, radius:obj.radius});
+        }
+      });
+
+      if(!candidates.length){
+        status.textContent='⚠️ GPS 등록된 구역이 없어요. 관리탭에서 먼저 등록해주세요.';
+        status.style.color='#BA7517'; return;
+      }
+
+      candidates.sort(function(a,b){ return a.dist-b.dist; });
+      var nearest=candidates[0];
+
+      if(nearest.dist<=nearest.radius){
+        document.getElementById('fz').value=nearest.name;
+        status.textContent='📍 '+nearest.name+' ('+nearest.dist+'m · 정확도 ±'+acc+'m)';
+        status.style.color='#3B6D11';
+        showToast('📍 '+nearest.name+' 자동 입력됐어요!','ok');
+      } else {
+        // 범위 밖 — 가장 가까운 구역 안내 + 선택 유도
+        status.style.color='#BA7517';
+        status.textContent='⚠️ 등록된 구역 외 위치 (가장 가까운 곳: '+nearest.name+' '+nearest.dist+'m)';
+        showGPSCandidates(candidates.slice(0,3), lat, lng, acc);
+      }
+    },
+    function(err){
+      btn.textContent='📍'; btn.disabled=false;
+      var msg = err.code===1?'위치 권한을 허용해주세요.':err.code===2?'위치를 가져올 수 없어요.':'시간 초과됐어요.';
+      status.textContent='❌ '+msg; status.style.color='#A32D2D'; status.style.display='block';
+    },
+    {enableHighAccuracy:true, timeout:12000, maximumAge:0}
+  );
+}
+
+function showGPSCandidates(candidates, lat, lng, acc){
+  // 팝업으로 가까운 구역 선택 제안
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9000;display:flex;align-items:flex-end;justify-content:center';
+  var sheet=document.createElement('div');
+  sheet.style.cssText='background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;padding:20px 16px 32px;box-shadow:0 -4px 20px rgba(0,0,0,0.15)';
+  sheet.innerHTML='<div style="text-align:center;margin-bottom:16px">'
+    +'<div style="font-size:15px;font-weight:600;margin-bottom:4px">등록된 구역 밖입니다</div>'
+    +'<div style="font-size:12px;color:#8e8e93">현재 위치 기준 가까운 구역을 선택하거나 직접 입력하세요</div>'
+    +'<div style="font-size:11px;color:#aaa;margin-top:2px">GPS 정확도 ±'+acc+'m</div>'
+    +'</div>';
+  candidates.forEach(function(cand){
+    var btn=document.createElement('button');
+    btn.style.cssText='width:100%;padding:14px;border-radius:10px;border:0.5px solid #e5e5ea;background:#fff;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;text-align:left';
+    btn.innerHTML='<span style="font-weight:500">'+cand.name+'</span>'
+      +'<span style="font-size:12px;color:#8e8e93">'+cand.dist+'m</span>';
+    btn.onclick=function(){
+      document.getElementById('fz').value=cand.name;
+      document.getElementById('gps-status').textContent='📍 '+cand.name+' 선택됨 ('+cand.dist+'m)';
+      document.getElementById('gps-status').style.color='#185FA5';
+      document.body.removeChild(ov);
+    };
+    sheet.appendChild(btn);
+  });
+  var cancelBtn=document.createElement('button');
+  cancelBtn.style.cssText='width:100%;padding:14px;border-radius:10px;border:none;background:#f2f2f7;font-size:14px;cursor:pointer;font-family:inherit;color:#8e8e93;font-weight:500';
+  cancelBtn.textContent='직접 입력하기';
+  cancelBtn.onclick=function(){ document.body.removeChild(ov); document.getElementById('fz').focus(); };
+  sheet.appendChild(cancelBtn);
+  ov.appendChild(sheet);
+  ov.onclick=function(e){ if(e.target===ov) document.body.removeChild(ov); };
+  document.body.appendChild(ov);
+}
+
+
 function setDefaultDT(){
   var dt = document.getElementById('fdt');
   if(!dt) return;
@@ -1057,18 +1165,62 @@ function useNewPlate(){
 }
 
 
+function loadConfig(){
+  return new Promise(function(resolve){
+    var cbName='jsonp_cb_cfg_'+Date.now();
+    var script=document.createElement('script');
+    var done=false;
+    var timer=setTimeout(function(){
+      if(done) return; done=true;
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      resolve(null); // 실패해도 기본값으로 진행
+    }, 8000);
+    window[cbName]=function(data){
+      if(done) return; done=true;
+      clearTimeout(timer);
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      resolve(data);
+    };
+    script.onerror=function(){ if(done) return; done=true; clearTimeout(timer); resolve(null); };
+    script.src=API_URL+'?action=getConfig&callback='+cbName;
+    document.head.appendChild(script);
+  });
+}
+
+function applyConfig(cfg){
+  if(!cfg || !cfg.ok) return;
+  // 활동목록
+  if(cfg.activities && cfg.activities.length){
+    ACTIVITIES = cfg.activities;
+  }
+  // 장소목록 (GPS 포함)
+  if(cfg.zones && cfg.zones.length){
+    ZONES = cfg.zones;
+  }
+  // 비밀번호
+  if(cfg.admin_pw){
+    ADMIN_PW = cfg.admin_pw;
+  }
+  buildZone();
+  buildActivityList();
+}
+
 function init(){
-  // UI 먼저 즉시 표시
+  // UI 먼저 즉시 표시 (기본값으로)
   buildTG(); buildZone(); buildSev(); buildFilters(); buildActivityList();
   setDefaultDatetime();
   updHdr(); renderHist(); renderStats();
-  // 데이터 백그라운드 로딩
+  // config + 위반 데이터 동시 로딩
   showBanner('스프레드시트에서 데이터 불러오는 중...', 'info');
-  ld().then(function(data){
-    viols = data;
+  Promise.all([loadConfig(), ld()]).then(function(results){
+    var cfg=results[0], data=results[1];
+    applyConfig(cfg);
+    viols=data;
     updHdr(); renderHist(); renderStats();
     buildOrgList();
-    if(data.length > 0) showToast('데이터 '+data.length+'건 불러왔어요.','ok');
+    if(data.length>0) showToast('데이터 '+data.length+'건 불러왔어요.','ok');
     hideBanner();
   });
 }
@@ -1109,14 +1261,24 @@ function onActivityChange(){
   if(v!=='기타'){ var ei=document.getElementById('factivity-etc'); if(ei) ei.value=''; }
 }
 function saveActivities(){
-  localStorage.setItem('activities', JSON.stringify(ACTIVITIES));
   buildActivityList();
   renderAdminActivities();
+  // config 시트에 저장
+  jsonpCall(buildParams({
+    action:'saveConfig', key:'activity',
+    values: ACTIVITIES.join('||')
+  })).then(function(r){ if(r&&r.ok) showToast('활동목록 저장됐어요.','ok'); });
 }
 function saveZones(){
-  localStorage.setItem('zones', JSON.stringify(ZONES));
   buildZone();
   renderAdminZones();
+  // config 시트에 저장 (형식: 장소명	위도	경도	반경)
+  var values = ZONES.map(function(z){
+    var obj = typeof z==='object' ? z : {name:z,lat:null,lng:null,radius:80};
+    return obj.name+'	'+(obj.lat||'')+'	'+(obj.lng||'')+'	'+(obj.radius||80);
+  }).join('||');
+  jsonpCall(buildParams({action:'saveConfig', key:'zone', values:values}))
+    .then(function(r){ if(r&&r.ok) showToast('장소목록 저장됐어요.','ok'); });
 }
 
 function checkAdminPW(){
@@ -1138,10 +1300,11 @@ function changePW(){
   if(!p1){ showToast('비밀번호를 입력해주세요.','warn'); return; }
   if(p1!==p2){ showToast('비밀번호가 일치하지 않습니다.','err'); return; }
   ADMIN_PW=p1;
-  localStorage.setItem('admin_pw',p1);
+  // config 시트에 비밀번호 저장
+  jsonpCall(buildParams({action:'saveConfig', key:'admin_pw', values:p1}))
+    .then(function(r){ if(r&&r.ok) showToast('비밀번호가 변경됐어요.','ok'); else showToast('저장 실패','err'); });
   document.getElementById('new-pw1').value='';
   document.getElementById('new-pw2').value='';
-  showToast('비밀번호가 변경됐어요.','ok');
 }
 
 function renderAdminActivities(){
@@ -1199,17 +1362,40 @@ function renderAdminZones(){
   if(!el) return;
   el.innerHTML='';
   ZONES.forEach(function(z,i){
+    var name = zoneName(z);
+    var obj = typeof z==='object' ? z : {name:z,lat:null,lng:null,radius:80};
+    var hasGPS = obj.lat && obj.lng;
+    var gpsLabel = hasGPS
+      ? '<span style="font-size:10px;color:#3B6D11;background:#EAF3DE;border-radius:4px;padding:1px 5px">📍 등록됨</span>'
+      : '<span style="font-size:10px;color:#aaa;background:#f0efea;border-radius:4px;padding:1px 5px">GPS 없음</span>';
+
     var row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:0.5px solid #f0efea';
-    row.innerHTML=
-      '<span id="zone-lbl-'+i+'" style="flex:1;font-size:13px">'+z+'</span>'
-      +'<input id="zone-inp-'+i+'" type="text" value="'+z+'" style="flex:1;display:none;font-size:13px;padding:4px 8px;border:0.5px solid #ccc;border-radius:5px">'
-      +'<button onclick="editZone('+i+')" id="zone-edit-btn-'+i+'" style="padding:3px 10px;border-radius:5px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:11px;cursor:pointer;font-family:inherit">수정</button>'
-      +'<button onclick="saveZoneItem('+i+')" id="zone-save-btn-'+i+'" style="display:none;padding:3px 10px;border-radius:5px;border:0.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:11px;cursor:pointer;font-family:inherit">저장</button>'
-      +'<button onclick="removeZone('+i+')" style="padding:3px 10px;border-radius:5px;border:0.5px solid #f0959588;background:#FCEBEB;color:#A32D2D;font-size:11px;cursor:pointer;font-family:inherit">삭제</button>';
+    row.style.cssText='padding:8px 0;border-bottom:0.5px solid #f0efea';
+
+    // 라벨행
+    var topRow=document.createElement('div');
+    topRow.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:'+(hasGPS?'4':'0')+'px';
+    topRow.innerHTML=
+      '<span id="zone-lbl-'+i+'" style="flex:1;font-size:13px;font-weight:500">'+name+'</span>'
+      +gpsLabel
+      +'<input id="zone-inp-'+i+'" type="text" value="'+name+'" style="flex:1;display:none;font-size:13px;padding:4px 8px;border:0.5px solid #ccc;border-radius:5px">'
+      +'<button onclick="editZone('+i+')" id="zone-edit-btn-'+i+'" style="padding:3px 8px;border-radius:5px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:10px;cursor:pointer;font-family:inherit">수정</button>'
+      +'<button onclick="saveZoneItem('+i+')" id="zone-save-btn-'+i+'" style="display:none;padding:3px 8px;border-radius:5px;border:0.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:10px;cursor:pointer;font-family:inherit">저장</button>'
+      +'<button onclick="registerGPSForZone('+i+')" style="padding:3px 8px;border-radius:5px;border:0.5px solid #185FA5;background:'+(hasGPS?'#EAF3DE':'#fff')+';color:'+(hasGPS?'#3B6D11':'#185FA5')+';font-size:10px;cursor:pointer;font-family:inherit">📍'+(hasGPS?'재등록':'GPS등록')+'</button>'
+      +'<button onclick="removeZone('+i+')" style="padding:3px 8px;border-radius:5px;border:0.5px solid #f0959588;background:#FCEBEB;color:#A32D2D;font-size:10px;cursor:pointer;font-family:inherit">삭제</button>';
+    row.appendChild(topRow);
+
+    // GPS 정보 표시
+    if(hasGPS){
+      var gpsInfo=document.createElement('div');
+      gpsInfo.style.cssText='font-size:10px;color:#8e8e93;padding-left:2px';
+      gpsInfo.textContent='위도 '+obj.lat.toFixed(6)+' · 경도 '+obj.lng.toFixed(6)+' · 반경 '+obj.radius+'m';
+      row.appendChild(gpsInfo);
+    }
     el.appendChild(row);
   });
 }
+
 function editZone(i){
   document.getElementById('zone-lbl-'+i).style.display='none';
   document.getElementById('zone-inp-'+i).style.display='block';
@@ -1217,22 +1403,43 @@ function editZone(i){
   document.getElementById('zone-save-btn-'+i).style.display='block';
   document.getElementById('zone-inp-'+i).focus();
 }
+
 function saveZoneItem(i){
-  var oldVal=ZONES[i];
-  var newVal=document.getElementById('zone-inp-'+i).value.trim();
-  if(!newVal){ showToast('빈 값은 저장할 수 없어요.','warn'); return; }
-  if(newVal===oldVal){ renderAdminZones(); return; }
-  ZONES[i]=newVal;
+  var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80};
+  var oldName = obj.name;
+  var newName = document.getElementById('zone-inp-'+i).value.trim();
+  if(!newName){ showToast('빈 값은 저장할 수 없어요.','warn'); return; }
+  if(newName===oldName){ renderAdminZones(); return; }
+  obj.name = newName;
+  ZONES[i] = obj;
   saveZones();
-  renameInDB('zone', oldVal, newVal);
-  showToast('"'+oldVal+'" → "'+newVal+'" 수정됐어요.','ok');
+  renameInDB('zone', oldName, newName);
+  showToast('"'+oldName+'" → "'+newName+'" 수정됐어요.','ok');
+}
+
+function registerGPSForZone(i){
+  var btn = event.target;
+  btn.textContent='⏳ 위치 감지 중...';
+  btn.disabled=true;
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80};
+      obj.lat = pos.coords.latitude;
+      obj.lng = pos.coords.longitude;
+      ZONES[i] = obj;
+      saveZones();
+      showToast(obj.name+' GPS 등록 완료! ('+obj.lat.toFixed(5)+', '+obj.lng.toFixed(5)+')','ok');
+    },
+    function(err){ showToast('GPS 오류: '+err.message,'err'); btn.textContent='📍GPS등록'; btn.disabled=false; },
+    {enableHighAccuracy:true, timeout:10000}
+  );
 }
 
 function addZone(){
   var v=document.getElementById('new-zone').value.trim();
   if(!v){ showToast('장소명을 입력해주세요.','warn'); return; }
-  if(ZONES.indexOf(v)>=0){ showToast('이미 있는 항목이에요.','warn'); return; }
-  ZONES.splice(ZONES.length-1, 0, v); // 기타 앞에 삽입
+  if(ZONES.some(function(z){ return zoneName(z)===v; })){ showToast('이미 있는 항목이에요.','warn'); return; }
+  ZONES.splice(ZONES.length-1, 0, {name:v, lat:null, lng:null, radius:80});
   document.getElementById('new-zone').value='';
   saveZones();
   showToast(v+' 추가됐어요.','ok');
@@ -1246,8 +1453,12 @@ function removeZone(i){
 function buildZone(){
   var dl=document.getElementById('zone-list');
   if(!dl) return;
-  dl.innerHTML=ZONES.map(function(z){ return '<option value="'+z+'">'; }).join('');
+  dl.innerHTML=ZONES.map(function(z){
+    var name = typeof z==='string' ? z : z.name;
+    return '<option value="'+name+'">';
+  }).join('');
 }
+function zoneName(z){ return typeof z==='string' ? z : z.name; }
 
 function buildSev(){
   var row=document.getElementById('sevrow'); row.innerHTML='';
