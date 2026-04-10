@@ -271,6 +271,10 @@
   .header, .tab-nav { display: none !important; }
   .wrap { padding: 0; max-width: none; }
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
 <!-- 앱 헤더 -->
@@ -474,6 +478,60 @@
   <div id="top-banner" style="display:none;position:fixed;top:0;left:0;width:100%;background:#FAEEDA;color:#BA7517;font-size:12px;text-align:center;padding:8px;z-index:999;border-bottom:0.5px solid #EF9F2744"></div>
   <div id="toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;font-size:13px;z-index:1000;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.1)"></div>
 </div>
+
+  <!-- GPS 지도 picker 모달 -->
+  <div id="map-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9500;align-items:flex-end;justify-content:center;">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;display:flex;flex-direction:column;" id="map-modal-inner">
+      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #e5e5ea;flex-shrink:0">
+        <div>
+          <div style="font-size:15px;font-weight:600" id="map-modal-title">위치 설정</div>
+          <div style="font-size:11px;color:#8e8e93;margin-top:2px">지도를 탭하거나 드래그하여 위치를 정확히 지정하세요</div>
+        </div>
+        <button onclick="closeMapModal()" style="border:none;background:transparent;font-size:20px;color:#aaa;cursor:pointer;padding:4px 8px;line-height:1">×</button>
+      </div>
+      <!-- 현재위치 + 좌표 표시 -->
+      <div style="padding:8px 16px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
+        <button onclick="gotoMyLocation()" style="padding:6px 12px;border-radius:8px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">📍 현재위치</button>
+        <div id="map-coords" style="font-size:11px;color:#8e8e93;font-family:monospace">핀을 이동하여 위치 선택</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+          <label style="font-size:11px;color:#8e8e93">반경</label>
+          <input type="number" id="map-radius" value="80" min="10" max="500" step="10"
+            style="width:60px;padding:4px 6px;border:0.5px solid #ccc;border-radius:6px;font-size:12px;text-align:center">
+          <span style="font-size:11px;color:#8e8e93">m</span>
+        </div>
+      </div>
+      <!-- 지도 -->
+      <div id="zone-map" style="height:55vh;width:100%;flex-shrink:0"></div>
+      <!-- 저장 버튼 -->
+      <div style="padding:12px 16px;flex-shrink:0">
+        <button onclick="confirmMapLocation()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#E24B4A;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">이 위치로 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GPS 지도 picker 모달 -->
+  <div id="map-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9500;align-items:flex-end;justify-content:center;">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;display:flex;flex-direction:column;">
+      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #e5e5ea;flex-shrink:0">
+        <div>
+          <div style="font-size:15px;font-weight:600" id="map-modal-title">위치 설정</div>
+          <div style="font-size:11px;color:#8e8e93;margin-top:2px">지도를 탭하거나 핀을 드래그하여 위치 지정</div>
+        </div>
+        <button onclick="closeMapModal()" style="border:none;background:transparent;font-size:20px;color:#aaa;cursor:pointer;padding:4px 8px;line-height:1">×</button>
+      </div>
+      <div style="padding:8px 16px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
+        <button onclick="gotoMyLocation()" style="padding:6px 12px;border-radius:8px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">📍 현재위치</button>
+        <div id="map-coords" style="font-size:11px;color:#8e8e93;font-family:monospace;flex:1">핀을 이동하여 위치 선택</div>
+        <label style="font-size:11px;color:#8e8e93;flex-shrink:0">반경</label>
+        <input type="number" id="map-radius" value="80" min="10" max="500" step="10" style="width:55px;padding:4px 6px;border:0.5px solid #ccc;border-radius:6px;font-size:12px;text-align:center;flex-shrink:0">
+        <span style="font-size:11px;color:#8e8e93;flex-shrink:0">m</span>
+      </div>
+      <div id="zone-map" style="height:52vh;width:100%;flex-shrink:0"></div>
+      <div style="padding:12px 16px;flex-shrink:0;padding-bottom:calc(12px + env(safe-area-inset-bottom))">
+        <button onclick="confirmMapLocation()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#E24B4A;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">이 위치로 저장</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 차량 조회 팝업 -->
   <div id="carfind-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9000;align-items:center;justify-content:center;">
@@ -1417,22 +1475,110 @@ function saveZoneItem(i){
   showToast('"'+oldName+'" → "'+newName+'" 수정됐어요.','ok');
 }
 
+// 지도 관련 전역 변수
+var _mapInstance = null;
+var _mapMarker = null;
+var _mapCircle = null;
+var _mapZoneIdx = -1;
+var _mapLat = null;
+var _mapLng = null;
+
 function registerGPSForZone(i){
-  var btn = event.target;
-  btn.textContent='⏳ 위치 감지 중...';
-  btn.disabled=true;
-  navigator.geolocation.getCurrentPosition(
-    function(pos){
-      var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80};
-      obj.lat = pos.coords.latitude;
-      obj.lng = pos.coords.longitude;
-      ZONES[i] = obj;
-      saveZones();
-      showToast(obj.name+' GPS 등록 완료! ('+obj.lat.toFixed(5)+', '+obj.lng.toFixed(5)+')','ok');
-    },
-    function(err){ showToast('GPS 오류: '+err.message,'err'); btn.textContent='📍GPS등록'; btn.disabled=false; },
-    {enableHighAccuracy:true, timeout:10000}
-  );
+  _mapZoneIdx = i;
+  var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80};
+  document.getElementById('map-modal-title').textContent = obj.name + ' 위치 설정';
+  document.getElementById('map-radius').value = obj.radius || 80;
+  document.getElementById('map-modal').style.display = 'flex';
+
+  // 지도 초기화 (처음 한 번만)
+  setTimeout(function(){
+    if(!_mapInstance){
+      // HD현대삼호 조선소 기본 위치
+      var defaultLat = obj.lat || 34.7647;
+      var defaultLng = obj.lng || 126.3869;
+      _mapInstance = L.map('zone-map').setView([defaultLat, defaultLng], 17);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution:'© OpenStreetMap', maxZoom:20
+      }).addTo(_mapInstance);
+
+      // 지도 클릭 시 마커 이동
+      _mapInstance.on('click', function(e){
+        setMapPin(e.latlng.lat, e.latlng.lng);
+      });
+    } else {
+      _mapInstance.invalidateSize();
+    }
+
+    // 기존 좌표 있으면 해당 위치로
+    var initLat = obj.lat || 34.7647;
+    var initLng = obj.lng || 126.3869;
+    _mapInstance.setView([initLat, initLng], 17);
+    setMapPin(initLat, initLng);
+
+    // 다른 구역 마커 표시 (참고용)
+    ZONES.forEach(function(z, zi){
+      var zo = typeof z==='object' ? z : {name:z,lat:null,lng:null};
+      if(zi!==i && zo.lat && zo.lng){
+        L.circleMarker([zo.lat, zo.lng], {
+          radius:6, color:'#185FA5', fillColor:'#E6F1FB', fillOpacity:0.8, weight:2
+        }).addTo(_mapInstance).bindPopup(zo.name);
+      }
+    });
+  }, 100);
+}
+
+function setMapPin(lat, lng){
+  _mapLat = lat; _mapLng = lng;
+  var radius = parseInt(document.getElementById('map-radius').value)||80;
+  document.getElementById('map-coords').textContent =
+    '위도 '+lat.toFixed(6)+' · 경도 '+lng.toFixed(6);
+
+  if(_mapMarker){
+    _mapMarker.setLatLng([lat, lng]);
+  } else {
+    _mapMarker = L.marker([lat, lng], {draggable:true})
+      .addTo(_mapInstance)
+      .on('dragend', function(e){
+        var p=e.target.getLatLng();
+        setMapPin(p.lat, p.lng);
+      });
+  }
+  if(_mapCircle){
+    _mapCircle.setLatLng([lat, lng]).setRadius(radius);
+  } else {
+    _mapCircle = L.circle([lat, lng], {
+      radius:radius, color:'#E24B4A', fillColor:'#FCEBEB', fillOpacity:0.25, weight:2
+    }).addTo(_mapInstance);
+  }
+}
+
+function gotoMyLocation(){
+  if(!navigator.geolocation){ showToast('GPS를 지원하지 않아요.','warn'); return; }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    _mapInstance.setView([pos.coords.latitude, pos.coords.longitude], 18);
+    setMapPin(pos.coords.latitude, pos.coords.longitude);
+  }, function(){ showToast('현재 위치를 가져올 수 없어요.','warn'); }, {enableHighAccuracy:true,timeout:8000});
+}
+
+function closeMapModal(){
+  document.getElementById('map-modal').style.display='none';
+}
+
+function confirmMapLocation(){
+  if(_mapLat===null){ showToast('지도에서 위치를 먼저 선택해주세요.','warn'); return; }
+  var radius = parseInt(document.getElementById('map-radius').value)||80;
+  var obj = typeof ZONES[_mapZoneIdx]==='object'
+    ? ZONES[_mapZoneIdx]
+    : {name:ZONES[_mapZoneIdx],lat:null,lng:null,radius:80};
+  obj.lat = _mapLat;
+  obj.lng = _mapLng;
+  obj.radius = radius;
+  ZONES[_mapZoneIdx] = obj;
+  // 반경 원도 업데이트
+  if(_mapCircle) _mapCircle.setRadius(radius);
+  saveZones();
+  closeMapModal();
+  showToast(obj.name+' 위치 저장됐어요! (반경 '+radius+'m)','ok');
 }
 
 function addZone(){
