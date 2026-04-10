@@ -1334,20 +1334,38 @@ function saveActivities(){
     values: ACTIVITIES.join('||')
   })).then(function(r){ if(r&&r.ok) showToast('활동목록 저장됐어요.','ok'); });
 }
+function zoneToValue(obj){
+  var name = obj.name || '';
+  var lat  = (obj.lat  && !isNaN(obj.lat))  ? obj.lat  : '';
+  var lng  = (obj.lng  && !isNaN(obj.lng))  ? obj.lng  : '';
+  var rad  = (obj.radius && !isNaN(obj.radius)) ? obj.radius : 80;
+  return name+'|'+lat+'|'+lng+'|'+rad;
+}
+
+// 전체 저장 (추가/삭제 시)
 function saveZones(){
   buildZone();
   renderAdminZones();
-  // config 시트에 저장 (형식: 장소명|위도|경도|반경)
   var values = ZONES.map(function(z){
     var obj = typeof z==='object' ? z : {name:z,lat:null,lng:null,radius:80};
-    var name = obj.name || '';
-    var lat  = (obj.lat  && !isNaN(obj.lat))  ? obj.lat  : '';
-    var lng  = (obj.lng  && !isNaN(obj.lng))  ? obj.lng  : '';
-    var rad  = (obj.radius && !isNaN(obj.radius)) ? obj.radius : 80;
-    return name+'|'+lat+'|'+lng+'|'+rad;
+    return zoneToValue(obj);
   }).join('||');
   jsonpCall(buildParams({action:'saveConfig', key:'zone', values:values}))
     .then(function(r){ if(r&&r.ok) showToast('장소목록 저장됐어요.','ok'); });
+}
+
+// 개별 zone 하나만 업데이트 (GPS 등록/수정 시)
+function updateOneZone(obj){
+  buildZone();
+  renderAdminZones();
+  jsonpCall(buildParams({
+    action: 'updateZone',
+    name:   obj.name,
+    value:  zoneToValue(obj)
+  })).then(function(r){
+    if(r&&r.ok) showToast(obj.name+' 저장됐어요.','ok');
+    else showToast('저장 실패','err');
+  });
 }
 
 function checkAdminPW(){
@@ -1481,9 +1499,11 @@ function saveZoneItem(i){
   if(newName===oldName){ renderAdminZones(); return; }
   obj.name = newName;
   ZONES[i] = obj;
-  saveZones();
-  renameInDB('zone', oldName, newName);
-  showToast('"'+oldName+'" → "'+newName+'" 수정됐어요.','ok');
+  buildZone(); renderAdminZones();
+  // 이름 변경 → 기존 행 삭제 후 새 이름으로 저장
+  jsonpCall(buildParams({action:'deleteZone', name:oldName}))
+    .then(function(){ return jsonpCall(buildParams({action:'updateZone', name:newName, value:zoneToValue(obj)})); })
+    .then(function(){ renameInDB('zone', oldName, newName); showToast('"'+oldName+'" → "'+newName+'" 수정됐어요.','ok'); });
 }
 
 // 지도 관련 전역 변수
@@ -1585,25 +1605,28 @@ function confirmMapLocation(){
   obj.lng = _mapLng;
   obj.radius = radius;
   ZONES[_mapZoneIdx] = obj;
-  // 반경 원도 업데이트
   if(_mapCircle) _mapCircle.setRadius(radius);
-  saveZones();
+  updateOneZone(obj);  // 해당 장소만 업데이트
   closeMapModal();
-  showToast(obj.name+' 위치 저장됐어요! (반경 '+radius+'m)','ok');
 }
 
 function addZone(){
   var v=document.getElementById('new-zone').value.trim();
   if(!v){ showToast('장소명을 입력해주세요.','warn'); return; }
   if(ZONES.some(function(z){ return zoneName(z)===v; })){ showToast('이미 있는 항목이에요.','warn'); return; }
-  ZONES.splice(ZONES.length-1, 0, {name:v, lat:null, lng:null, radius:80});
+  var newObj = {name:v, lat:null, lng:null, radius:80};
+  ZONES.splice(ZONES.length-1, 0, newObj);
   document.getElementById('new-zone').value='';
-  saveZones();
-  showToast(v+' 추가됐어요.','ok');
+  buildZone(); renderAdminZones();
+  updateOneZone(newObj);
 }
 function removeZone(i){
+  var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80};
+  var name = obj.name;
   ZONES.splice(i,1);
-  saveZones();
+  buildZone(); renderAdminZones();
+  jsonpCall(buildParams({action:'deleteZone', name:name}))
+    .then(function(r){ if(r&&r.ok) showToast(name+' 삭제됐어요.','ok'); });
 }
 
 
