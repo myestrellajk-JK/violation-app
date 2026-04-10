@@ -1253,9 +1253,16 @@ function applyConfig(cfg){
   if(cfg.activities && cfg.activities.length){
     ACTIVITIES = cfg.activities;
   }
-  // 장소목록 (GPS 포함)
+  // 장소목록 (GPS 포함) — name 필드 정제
   if(cfg.zones && cfg.zones.length){
-    ZONES = cfg.zones;
+    ZONES = cfg.zones.map(function(z){
+      return {
+        name:   String(z.name||'').trim(),
+        lat:    (z.lat  && !isNaN(z.lat))  ? parseFloat(z.lat)  : null,
+        lng:    (z.lng  && !isNaN(z.lng))  ? parseFloat(z.lng)  : null,
+        radius: (z.radius && !isNaN(z.radius)) ? parseInt(z.radius) : 80
+      };
+    }).filter(function(z){ return z.name; });
   }
   // 비밀번호
   if(cfg.admin_pw){
@@ -1330,10 +1337,14 @@ function saveActivities(){
 function saveZones(){
   buildZone();
   renderAdminZones();
-  // config 시트에 저장 (형식: 장소명	위도	경도	반경)
+  // config 시트에 저장 (형식: 장소명|위도|경도|반경)
   var values = ZONES.map(function(z){
     var obj = typeof z==='object' ? z : {name:z,lat:null,lng:null,radius:80};
-    return obj.name+'	'+(obj.lat||'')+'	'+(obj.lng||'')+'	'+(obj.radius||80);
+    var name = obj.name || '';
+    var lat  = (obj.lat  && !isNaN(obj.lat))  ? obj.lat  : '';
+    var lng  = (obj.lng  && !isNaN(obj.lng))  ? obj.lng  : '';
+    var rad  = (obj.radius && !isNaN(obj.radius)) ? obj.radius : 80;
+    return name+'|'+lat+'|'+lng+'|'+rad;
   }).join('||');
   jsonpCall(buildParams({action:'saveConfig', key:'zone', values:values}))
     .then(function(r){ if(r&&r.ok) showToast('장소목록 저장됐어요.','ok'); });
