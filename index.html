@@ -448,7 +448,7 @@
           <option value="heat">히트맵</option>
         </select>
       </div>
-      <div id="violation-map" style="height:55vh;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)"></div>
+      <div id="violation-map" style="height:420px;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)"></div>
       <div id="map-legend" style="margin-top:10px;display:grid;gap:6px"></div>
     </div>
   </div>
@@ -529,7 +529,7 @@
         </div>
       </div>
       <!-- 지도 -->
-      <div id="zone-map" style="height:55vh;width:100%;flex-shrink:0"></div>
+      <div id="zone-map" style="height:420px;width:100%;flex-shrink:0"></div>
       <!-- 저장 버튼 -->
       <div style="padding:12px 16px;flex-shrink:0">
         <button onclick="confirmMapLocation()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#E24B4A;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">이 위치로 저장</button>
@@ -1555,7 +1555,7 @@ function registerGPSForZone(i){
       // HD현대삼호 조선소 기본 위치
       var defaultLat = obj.lat || 34.7647;
       var defaultLng = obj.lng || 126.3869;
-      _mapInstance = L.map('zone-map').setView([defaultLat, defaultLng], 17);
+      _mapInstance = L.map('zone-map', {tap:false}).setView([defaultLat, defaultLng], 17);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
         attribution:'© OpenStreetMap', maxZoom:20
       }).addTo(_mapInstance);
@@ -1984,7 +1984,16 @@ function switchStatsSub(sub){
   });
   document.getElementById('stats-content').style.display = sub==='stats' ? 'block' : 'none';
   document.getElementById('map-content').style.display   = sub==='map'   ? 'block' : 'none';
-  if(sub==='map') setTimeout(renderViolationMap, 100);
+  if(sub==='map'){
+    // iOS Safari: display:none에서 꺼낸 후 충분한 시간 대기
+    setTimeout(function(){
+      renderViolationMap();
+      // 추가 invalidateSize (지도 크기 재계산)
+      setTimeout(function(){
+        if(_violMapInstance) _violMapInstance.invalidateSize(true);
+      }, 300);
+    }, 150);
+  }
 }
 
 // ── 구역별 위반 지도 ──
@@ -2028,14 +2037,25 @@ function renderViolationMap(){
 
   // 지도 초기화
   var mapEl = document.getElementById('violation-map');
-  if(_violMapInstance){ _violMapInstance.remove(); _violMapInstance=null; }
   var center = mappedZones.length
     ? [mappedZones[0].lat, mappedZones[0].lng]
     : [34.7647, 126.3869];
-  _violMapInstance = L.map('violation-map').setView(center, 16);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution:'© OpenStreetMap', maxZoom:20
-  }).addTo(_violMapInstance);
+
+  if(!_violMapInstance){
+    _violMapInstance = L.map('violation-map', {
+      tap: false  // iOS Safari 터치 버그 방지
+    }).setView(center, 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© OpenStreetMap', maxZoom:20
+    }).addTo(_violMapInstance);
+  } else {
+    // 기존 마커/레이어만 제거, 지도 인스턴스 재사용
+    _violMapInstance.eachLayer(function(layer){
+      if(!(layer instanceof L.TileLayer)) _violMapInstance.removeLayer(layer);
+    });
+    _violMapInstance.setView(center, 16);
+    _violMapInstance.invalidateSize(true);
+  }
 
   var maxCount = Math.max.apply(null, mappedZones.map(function(z){ return z.count; }).concat([1]));
 
