@@ -402,6 +402,15 @@
   <!-- STATS -->
   <div id="tab-stats" class="tc">
     <div class="section-title">통계 현황</div>
+    <!-- 서브탭: 통계 / 지도 -->
+    <div style="display:flex;gap:4px;background:#e8e8e5;border-radius:10px;padding:4px;margin-bottom:16px">
+      <button class="stats-sub-btn active" id="sub-stats" onclick="switchStatsSub('stats')"
+        style="flex:1;padding:8px 0;border:none;border-radius:7px;background:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;box-shadow:0 0.5px 2px rgba(0,0,0,0.08)">📊 통계</button>
+      <button class="stats-sub-btn" id="sub-map" onclick="switchStatsSub('map')"
+        style="flex:1;padding:8px 0;border:none;border-radius:7px;background:transparent;font-size:13px;cursor:pointer;font-family:inherit;color:#8e8e93">🗺️ 구역 지도</button>
+    </div>
+    <!-- 통계 콘텐츠 -->
+    <div id="stats-content">
     <div class="period-nav">
       <button class="period-btn" onclick="setPeriod('week')">최근7일</button>
       <button class="period-btn active" onclick="setPeriod('month')">이번달</button>
@@ -423,6 +432,25 @@
     <div class="smb" id="offcard"></div>
     <div class="smb" id="catcard"></div>
     <div id="typecard"></div>
+    </div><!-- end stats-content -->
+    <!-- 지도 콘텐츠 -->
+    <div id="map-content" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <select id="map-period" onchange="renderViolationMap()" style="flex:1;min-width:120px;padding:10px 12px;border:none;border-radius:10px;background:#fff;font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+          <option value="all">전체 기간</option>
+          <option value="month">이번 달</option>
+          <option value="quarter">최근 3개월</option>
+          <option value="year">올해</option>
+          <option value="lastyear">지난 1년</option>
+        </select>
+        <select id="map-view-type" onchange="renderViolationMap()" style="flex:1;min-width:100px;padding:10px 12px;border:none;border-radius:10px;background:#fff;font-size:14px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+          <option value="count">건수 표시</option>
+          <option value="heat">히트맵</option>
+        </select>
+      </div>
+      <div id="violation-map" style="height:55vh;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)"></div>
+      <div id="map-legend" style="margin-top:10px;display:grid;gap:6px"></div>
+    </div>
   </div>
 
   <!-- ADMIN -->
@@ -1941,6 +1969,168 @@ function getDateRange(period){
   else { return null; }
   return {start:start,end:end};
 }
+
+// ── 통계 서브탭 전환 ──
+var _violMapInstance = null;
+var _violMarkers = [];
+
+function switchStatsSub(sub){
+  document.querySelectorAll('.stats-sub-btn').forEach(function(b){
+    var isActive = b.id === 'sub-'+sub;
+    b.style.background = isActive ? '#fff' : 'transparent';
+    b.style.fontWeight = isActive ? '500' : '400';
+    b.style.color = isActive ? '#1c1c1e' : '#8e8e93';
+    b.style.boxShadow = isActive ? '0 0.5px 2px rgba(0,0,0,0.08)' : 'none';
+  });
+  document.getElementById('stats-content').style.display = sub==='stats' ? 'block' : 'none';
+  document.getElementById('map-content').style.display   = sub==='map'   ? 'block' : 'none';
+  if(sub==='map') setTimeout(renderViolationMap, 100);
+}
+
+// ── 구역별 위반 지도 ──
+function getViolationsByPeriod(){
+  var period = document.getElementById('map-period').value;
+  var now = new Date();
+  return viols.filter(function(v){
+    if(period==='all') return true;
+    var d = new Date(v.timestamp);
+    if(period==='month') return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+    if(period==='quarter'){ var s=new Date(now); s.setMonth(now.getMonth()-2); s.setDate(1); return d>=s; }
+    if(period==='year') return d.getFullYear()===now.getFullYear();
+    if(period==='lastyear'){ var s=new Date(now); s.setFullYear(now.getFullYear()-1); return d>=s; }
+    return true;
+  });
+}
+
+function renderViolationMap(){
+  var viewType = document.getElementById('map-view-type').value;
+  var fv = getViolationsByPeriod();
+
+  // 구역별 위반 건수 집계
+  var zoneCounts = {};
+  fv.forEach(function(v){
+    var z = v.zone;
+    if(z) zoneCounts[z] = (zoneCounts[z]||0) + 1;
+  });
+
+  // GPS 등록된 구역만 필터
+  var mappedZones = ZONES.filter(function(z){
+    var obj = typeof z==='object' ? z : {name:z};
+    return obj.lat && obj.lng;
+  }).map(function(z){
+    var obj = typeof z==='object' ? z : {name:z};
+    return { name:obj.name, lat:obj.lat, lng:obj.lng, radius:obj.radius||80, count:zoneCounts[obj.name]||0 };
+  });
+
+  var unmapped = Object.keys(zoneCounts).filter(function(name){
+    return !ZONES.some(function(z){ return (typeof z==='object'?z.name:z)===name && z.lat; });
+  });
+
+  // 지도 초기화
+  var mapEl = document.getElementById('violation-map');
+  if(_violMapInstance){ _violMapInstance.remove(); _violMapInstance=null; }
+  var center = mappedZones.length
+    ? [mappedZones[0].lat, mappedZones[0].lng]
+    : [34.7647, 126.3869];
+  _violMapInstance = L.map('violation-map').setView(center, 16);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap', maxZoom:20
+  }).addTo(_violMapInstance);
+
+  var maxCount = Math.max.apply(null, mappedZones.map(function(z){ return z.count; }).concat([1]));
+
+  mappedZones.forEach(function(z){
+    var ratio = z.count / maxCount;
+    // 색상: 0건=파랑, 많을수록 빨강
+    var r = Math.round(ratio * 226);
+    var g = Math.round((1-ratio) * 100 + 75);
+    var b = Math.round((1-ratio) * 74);
+    var color = 'rgb('+r+','+g+','+b+')';
+    var fillOpacity = 0.15 + ratio * 0.55;
+
+    // 반경 원
+    L.circle([z.lat, z.lng], {
+      radius: z.radius,
+      color: color,
+      fillColor: color,
+      fillOpacity: fillOpacity,
+      weight: 2
+    }).addTo(_violMapInstance);
+
+    if(viewType==='count' && z.count > 0){
+      // 건수 숫자 마커
+      var icon = L.divIcon({
+        className: '',
+        html: '<div style="'
+          +'background:'+color+';color:#fff;font-size:'+(z.count>9?'12':'14')+'px;font-weight:700;'
+          +'width:'+(z.count>99?40:32)+'px;height:'+(z.count>99?40:32)+'px;'
+          +'border-radius:50%;display:flex;align-items:center;justify-content:center;'
+          +'box-shadow:0 2px 6px rgba(0,0,0,0.25);border:2px solid #fff'
+          +'">'+ z.count +'</div>',
+        iconSize: [z.count>99?40:32, z.count>99?40:32],
+        iconAnchor: [z.count>99?20:16, z.count>99?20:16]
+      });
+      L.marker([z.lat, z.lng], {icon:icon})
+        .addTo(_violMapInstance)
+        .bindPopup('<b>'+z.name+'</b><br>위반 '+z.count+'건');
+    } else if(viewType==='heat' || z.count===0){
+      // 구역명 라벨
+      var lblIcon = L.divIcon({
+        className:'',
+        html:'<div style="font-size:11px;font-weight:600;color:#1c1c1e;background:rgba(255,255,255,0.85);padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.15)">'
+          +z.name+(z.count>0?' ('+z.count+')':'')+'</div>',
+        iconSize:[0,0], iconAnchor:[0,0]
+      });
+      L.marker([z.lat, z.lng], {icon:lblIcon}).addTo(_violMapInstance);
+    }
+  });
+
+  // 지도 범례
+  var legendEl = document.getElementById('map-legend');
+  legendEl.innerHTML='';
+
+  // 위반 많은 구역 TOP 5
+  var sorted = mappedZones.filter(function(z){ return z.count>0; })
+    .sort(function(a,b){ return b.count-a.count; });
+
+  if(sorted.length){
+    var topCard = document.createElement('div');
+    topCard.style.cssText='background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+    topCard.innerHTML='<div style="font-size:12px;font-weight:600;color:#8e8e93;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.4px">위반 다발 구역 TOP '+Math.min(sorted.length,5)+'</div>'
+      +sorted.slice(0,5).map(function(z,i){
+        var ratio = z.count/maxCount;
+        var r=Math.round(ratio*226), g=Math.round((1-ratio)*100+75), b=Math.round((1-ratio)*74);
+        var color='rgb('+r+','+g+','+b+')';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:'+(i<Math.min(sorted.length,5)-1?'0.5px solid #f2f2f7':'none')+'">'
+          +'<div style="width:28px;height:28px;border-radius:50%;background:'+color+';color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(i+1)+'</div>'
+          +'<div style="flex:1;font-size:13px;font-weight:500">'+z.name+'</div>'
+          +'<div style="font-size:15px;font-weight:700;color:'+color+'">'+z.count+'<span style="font-size:11px;font-weight:400;color:#8e8e93">건</span></div>'
+          +'</div>';
+      }).join('');
+    legendEl.appendChild(topCard);
+  }
+
+  // GPS 미등록 구역 안내
+  if(unmapped.length){
+    var unmapCard = document.createElement('div');
+    unmapCard.style.cssText='background:#FAEEDA;border-radius:12px;padding:12px 14px';
+    unmapCard.innerHTML='<div style="font-size:12px;font-weight:600;color:#BA7517;margin-bottom:6px">📍 GPS 미등록 위반 구역</div>'
+      +'<div style="font-size:12px;color:#BA7517">'+unmapped.map(function(n){ return n+'('+zoneCounts[n]+'건)'; }).join(' · ')+'</div>'
+      +'<div style="font-size:11px;color:#BA7517;margin-top:4px">관리탭에서 GPS를 등록하면 지도에 표시돼요.</div>';
+    legendEl.appendChild(unmapCard);
+  }
+
+  if(!mappedZones.length){
+    mapEl.style.display='none';
+    legendEl.innerHTML='<div style="text-align:center;color:#8e8e93;font-size:13px;padding:3rem 0">GPS가 등록된 구역이 없어요.<br>관리탭에서 GPS를 먼저 등록해주세요.</div>';
+  } else {
+    mapEl.style.display='block';
+    // 모든 구역이 보이도록 지도 조정
+    var bounds = mappedZones.map(function(z){ return [z.lat, z.lng]; });
+    if(bounds.length>1) _violMapInstance.fitBounds(bounds, {padding:[30,30]});
+  }
+}
+
 
 function fd(d){ return d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate(); }
 
