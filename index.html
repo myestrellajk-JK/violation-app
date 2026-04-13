@@ -508,55 +508,44 @@
 </div>
 
   <!-- GPS 지도 picker 모달 -->
+  <!-- 구역 지정 모달 (원형/폴리곤) -->
   <div id="map-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9500;align-items:flex-end;justify-content:center;">
-    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;display:flex;flex-direction:column;" id="map-modal-inner">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;display:flex;flex-direction:column;max-height:92vh">
+      <!-- 헤더 -->
       <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #e5e5ea;flex-shrink:0">
         <div>
-          <div style="font-size:15px;font-weight:600" id="map-modal-title">위치 설정</div>
-          <div style="font-size:11px;color:#8e8e93;margin-top:2px">지도를 탭하거나 드래그하여 위치를 정확히 지정하세요</div>
+          <div style="font-size:15px;font-weight:600" id="map-modal-title">구역 지정</div>
+          <div style="font-size:11px;color:#8e8e93;margin-top:2px" id="map-modal-hint">모드를 선택하세요</div>
         </div>
         <button onclick="closeMapModal()" style="border:none;background:transparent;font-size:20px;color:#aaa;cursor:pointer;padding:4px 8px;line-height:1">×</button>
       </div>
-      <!-- 현재위치 + 좌표 표시 -->
-      <div style="padding:8px 16px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
-        <button onclick="gotoMyLocation()" style="padding:6px 12px;border-radius:8px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">📍 현재위치</button>
-        <div id="map-coords" style="font-size:11px;color:#8e8e93;font-family:monospace">핀을 이동하여 위치 선택</div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-          <label style="font-size:11px;color:#8e8e93">반경</label>
-          <input type="number" id="map-radius" value="80" min="10" max="500" step="10"
-            style="width:60px;padding:4px 6px;border:0.5px solid #ccc;border-radius:6px;font-size:12px;text-align:center">
-          <span style="font-size:11px;color:#8e8e93">m</span>
-        </div>
+      <!-- 모드 선택 -->
+      <div style="padding:8px 16px;display:flex;gap:6px;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
+        <button id="mode-circle" onclick="setDrawMode('circle')"
+          style="flex:1;padding:7px 0;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit">⭕ 원형</button>
+        <button id="mode-polygon" onclick="setDrawMode('polygon')"
+          style="flex:1;padding:7px 0;border-radius:8px;border:0.5px solid #ccc;background:#fff;color:#8e8e93;font-size:12px;cursor:pointer;font-family:inherit">🔷 폴리곤</button>
+        <button onclick="gotoMyLocation()"
+          style="flex:1;padding:7px 0;border-radius:8px;border:0.5px solid #185FA5;background:#fff;color:#185FA5;font-size:12px;cursor:pointer;font-family:inherit">📍 현재위치</button>
+      </div>
+      <!-- 원형 옵션 -->
+      <div id="circle-options" style="padding:6px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
+        <span style="font-size:12px;color:#8e8e93;flex-shrink:0">반경</span>
+        <input type="number" id="map-radius" value="80" min="10" max="500" step="10"
+          style="width:65px;padding:4px 8px;border:0.5px solid #ccc;border-radius:6px;font-size:13px;text-align:center" onchange="updateCircleRadius()">
+        <span style="font-size:12px;color:#8e8e93">m · 지도 탭하여 중심점 지정</span>
+      </div>
+      <!-- 폴리곤 안내 -->
+      <div id="polygon-options" style="display:none;padding:6px 16px;display:none;align-items:center;gap:8px;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
+        <span style="font-size:12px;color:#8e8e93;flex:1" id="poly-hint">지도를 탭하여 꼭짓점 추가 · 3개 이상 찍으면 완성</span>
+        <button onclick="undoPolyPoint()" style="padding:4px 10px;border-radius:6px;border:0.5px solid #ccc;background:#fff;color:#666;font-size:11px;cursor:pointer;font-family:inherit">↩ 되돌리기</button>
+        <button onclick="clearPoly()" style="padding:4px 10px;border-radius:6px;border:0.5px solid #f09595;background:#FCEBEB;color:#A32D2D;font-size:11px;cursor:pointer;font-family:inherit">초기화</button>
       </div>
       <!-- 지도 -->
       <div id="zone-map" style="height:420px;width:100%;flex-shrink:0"></div>
-      <!-- 저장 버튼 -->
-      <div style="padding:12px 16px;flex-shrink:0">
-        <button onclick="confirmMapLocation()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#E24B4A;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">이 위치로 저장</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- GPS 지도 picker 모달 -->
-  <div id="map-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9500;align-items:flex-end;justify-content:center;">
-    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;display:flex;flex-direction:column;">
-      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #e5e5ea;flex-shrink:0">
-        <div>
-          <div style="font-size:15px;font-weight:600" id="map-modal-title">위치 설정</div>
-          <div style="font-size:11px;color:#8e8e93;margin-top:2px">지도를 탭하거나 핀을 드래그하여 위치 지정</div>
-        </div>
-        <button onclick="closeMapModal()" style="border:none;background:transparent;font-size:20px;color:#aaa;cursor:pointer;padding:4px 8px;line-height:1">×</button>
-      </div>
-      <div style="padding:8px 16px;display:flex;gap:8px;align-items:center;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
-        <button onclick="gotoMyLocation()" style="padding:6px 12px;border-radius:8px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">📍 현재위치</button>
-        <div id="map-coords" style="font-size:11px;color:#8e8e93;font-family:monospace;flex:1">핀을 이동하여 위치 선택</div>
-        <label style="font-size:11px;color:#8e8e93;flex-shrink:0">반경</label>
-        <input type="number" id="map-radius" value="80" min="10" max="500" step="10" style="width:55px;padding:4px 6px;border:0.5px solid #ccc;border-radius:6px;font-size:12px;text-align:center;flex-shrink:0">
-        <span style="font-size:11px;color:#8e8e93;flex-shrink:0">m</span>
-      </div>
-      <div id="zone-map" style="height:52vh;width:100%;flex-shrink:0"></div>
-      <div style="padding:12px 16px;flex-shrink:0;padding-bottom:calc(12px + env(safe-area-inset-bottom))">
-        <button onclick="confirmMapLocation()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#E24B4A;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">이 위치로 저장</button>
+      <!-- 저장 -->
+      <div style="padding:10px 16px;flex-shrink:0;padding-bottom:calc(10px + env(safe-area-inset-bottom))">
+        <button onclick="confirmMapLocation()" style="width:100%;padding:13px;border-radius:12px;border:none;background:#E24B4A;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">이 구역으로 저장</button>
       </div>
     </div>
   </div>
@@ -997,10 +986,10 @@ function detectGPS(){
         status.style.color='#BA7517'; return;
       }
 
-      candidates.sort(function(a,b){ return a.dist-b.dist; });
+      candidates.sort(function(a,b){ return (a.inside?-1:a.dist)-(b.inside?-1:b.dist); });
       var nearest=candidates[0];
 
-      if(nearest.dist<=nearest.radius){
+      if(nearest && (nearest.inside || nearest.dist<=nearest.radius)){
         document.getElementById('fz').value=nearest.name;
         status.textContent='📍 '+nearest.name+' ('+nearest.dist+'m · 정확도 ±'+acc+'m)';
         status.style.color='#3B6D11';
@@ -1020,6 +1009,18 @@ function detectGPS(){
     {enableHighAccuracy:true, timeout:12000, maximumAge:0}
   );
 }
+
+// 폴리곤 내부 판정 (Ray Casting)
+function pointInPolygon(lat, lng, polygon){
+  var inside=false;
+  for(var i=0,j=polygon.length-1; i<polygon.length; j=i++){
+    var xi=polygon[i][0], yi=polygon[i][1];
+    var xj=polygon[j][0], yj=polygon[j][1];
+    if(((yi>lng)!==(yj>lng))&&(lat<(xj-xi)*(lng-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
 
 function showGPSCandidates(candidates, lat, lng, acc){
   // 팝업으로 가까운 구역 선택 제안
@@ -1285,10 +1286,11 @@ function applyConfig(cfg){
   if(cfg.zones && cfg.zones.length){
     ZONES = cfg.zones.map(function(z){
       return {
-        name:   String(z.name||'').trim(),
-        lat:    (z.lat  && !isNaN(z.lat))  ? parseFloat(z.lat)  : null,
-        lng:    (z.lng  && !isNaN(z.lng))  ? parseFloat(z.lng)  : null,
-        radius: (z.radius && !isNaN(z.radius)) ? parseInt(z.radius) : 80
+        name:    String(z.name||'').trim(),
+        lat:     (z.lat   && !isNaN(z.lat))    ? parseFloat(z.lat)   : null,
+        lng:     (z.lng   && !isNaN(z.lng))    ? parseFloat(z.lng)   : null,
+        radius:  (z.radius && !isNaN(z.radius)) ? parseInt(z.radius)  : 80,
+        polygon: Array.isArray(z.polygon) ? z.polygon : null
       };
     }).filter(function(z){ return z.name; });
   }
@@ -1366,8 +1368,11 @@ function zoneToValue(obj){
   var name = obj.name || '';
   var lat  = (obj.lat  && !isNaN(obj.lat))  ? obj.lat  : '';
   var lng  = (obj.lng  && !isNaN(obj.lng))  ? obj.lng  : '';
-  var rad  = (obj.radius && !isNaN(obj.radius)) ? obj.radius : 80;
-  return name+'|'+lat+'|'+lng+'|'+rad;
+  var rad  = (obj.radius && !isNaN(obj.radius)) ? obj.radius : '';
+  var poly = (obj.polygon && obj.polygon.length>=3)
+    ? obj.polygon.map(function(p){ return p[0]+','+p[1]; }).join(';')
+    : '';
+  return name+'|'+lat+'|'+lng+'|'+rad+'|'+poly;
 }
 
 // 전체 저장 (추가/삭제 시)
@@ -1538,53 +1543,161 @@ function saveZoneItem(i){
 var _mapInstance = null;
 var _mapMarker = null;
 var _mapCircle = null;
+var _mapPolygon = null;
+var _mapPolyMarkers = [];
+var _mapPolyPoints = [];
 var _mapZoneIdx = -1;
 var _mapLat = null;
 var _mapLng = null;
+var _drawMode = 'circle'; // 'circle' | 'polygon'
 
 function registerGPSForZone(i){
   _mapZoneIdx = i;
-  var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80};
-  document.getElementById('map-modal-title').textContent = obj.name + ' 위치 설정';
-  document.getElementById('map-radius').value = obj.radius || 80;
+  var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80,polygon:null};
+  document.getElementById('map-modal-title').textContent = obj.name + ' 구역 지정';
   document.getElementById('map-modal').style.display = 'flex';
 
-  // 지도 초기화 (처음 한 번만)
-  setTimeout(function(){
-    if(!_mapInstance){
-      // HD현대삼호 조선소 기본 위치
-      var defaultLat = obj.lat || 34.7647;
-      var defaultLng = obj.lng || 126.3869;
-      _mapInstance = L.map('zone-map', {tap:false}).setView([defaultLat, defaultLng], 17);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-        attribution:'© OpenStreetMap', maxZoom:20
-      }).addTo(_mapInstance);
+  // 기존 등록 유형에 따라 초기 모드 설정
+  if(obj.polygon && obj.polygon.length) setDrawMode('polygon');
+  else setDrawMode('circle');
 
-      // 지도 클릭 시 마커 이동
-      _mapInstance.on('click', function(e){
-        setMapPin(e.latlng.lat, e.latlng.lng);
-      });
+  setTimeout(function(){
+    var defaultLat = obj.lat || 34.7647;
+    var defaultLng = obj.lng || 126.3869;
+
+    if(!_mapInstance){
+      _mapInstance = L.map('zone-map',{tap:false}).setView([defaultLat,defaultLng],17);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:20}).addTo(_mapInstance);
+      _mapInstance.on('click', function(e){ onMapClick(e.latlng.lat, e.latlng.lng); });
     } else {
+      clearMapLayers();
       _mapInstance.invalidateSize();
     }
 
-    // 기존 좌표 있으면 해당 위치로
-    var initLat = obj.lat || 34.7647;
-    var initLng = obj.lng || 126.3869;
-    _mapInstance.setView([initLat, initLng], 17);
-    setMapPin(initLat, initLng);
+    // 기존 데이터 복원
+    if(obj.polygon && obj.polygon.length){
+      _mapPolyPoints = obj.polygon.slice();
+      renderPolyOnMap();
+      var latlngs = obj.polygon.map(function(p){ return [p[0],p[1]]; });
+      _mapInstance.fitBounds(latlngs, {padding:[30,30]});
+    } else {
+      var lat = obj.lat || defaultLat;
+      var lng = obj.lng || defaultLng;
+      _mapInstance.setView([lat,lng],17);
+      if(_drawMode==='circle') setMapPin(lat,lng);
+    }
 
-    // 다른 구역 마커 표시 (참고용)
-    ZONES.forEach(function(z, zi){
-      var zo = typeof z==='object' ? z : {name:z,lat:null,lng:null};
+    // 다른 구역 참고 마커
+    ZONES.forEach(function(z,zi){
+      var zo=typeof z==='object'?z:{name:z};
       if(zi!==i && zo.lat && zo.lng){
-        L.circleMarker([zo.lat, zo.lng], {
-          radius:6, color:'#185FA5', fillColor:'#E6F1FB', fillOpacity:0.8, weight:2
-        }).addTo(_mapInstance).bindPopup(zo.name);
+        L.circleMarker([zo.lat,zo.lng],{radius:5,color:'#185FA5',fillColor:'#E6F1FB',fillOpacity:0.8,weight:1.5})
+          .addTo(_mapInstance).bindPopup(zo.name);
       }
     });
-  }, 100);
+  }, 150);
 }
+
+function setDrawMode(mode){
+  _drawMode = mode;
+  var cBtn=document.getElementById('mode-circle');
+  var pBtn=document.getElementById('mode-polygon');
+  var cOpt=document.getElementById('circle-options');
+  var pOpt=document.getElementById('polygon-options');
+  var hint=document.getElementById('map-modal-hint');
+
+  if(mode==='circle'){
+    cBtn.style.cssText='flex:1;padding:7px 0;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit';
+    pBtn.style.cssText='flex:1;padding:7px 0;border-radius:8px;border:0.5px solid #ccc;background:#fff;color:#8e8e93;font-size:12px;cursor:pointer;font-family:inherit';
+    cOpt.style.display='flex'; pOpt.style.display='none';
+    hint.textContent='지도를 탭하여 중심점 지정, 반경 조정';
+  } else {
+    pBtn.style.cssText='flex:1;padding:7px 0;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit';
+    cBtn.style.cssText='flex:1;padding:7px 0;border-radius:8px;border:0.5px solid #ccc;background:#fff;color:#8e8e93;font-size:12px;cursor:pointer;font-family:inherit';
+    cOpt.style.display='none'; pOpt.style.display='flex';
+    hint.textContent='꼭짓점을 탭하여 추가 → 3개 이상이면 자동 완성';
+  }
+}
+
+function onMapClick(lat, lng){
+  if(_drawMode==='circle'){
+    setMapPin(lat, lng);
+  } else {
+    addPolyPoint(lat, lng);
+  }
+}
+
+function clearMapLayers(){
+  if(_mapMarker){ _mapInstance.removeLayer(_mapMarker); _mapMarker=null; }
+  if(_mapCircle){ _mapInstance.removeLayer(_mapCircle); _mapCircle=null; }
+  if(_mapPolygon){ _mapInstance.removeLayer(_mapPolygon); _mapPolygon=null; }
+  _mapPolyMarkers.forEach(function(m){ _mapInstance.removeLayer(m); });
+  _mapPolyMarkers=[];
+}
+
+function updateCircleRadius(){
+  if(_mapCircle && _mapLat){
+    var r=parseInt(document.getElementById('map-radius').value)||80;
+    _mapCircle.setRadius(r);
+  }
+}
+
+// ── 폴리곤 관련 ──
+function addPolyPoint(lat, lng){
+  _mapPolyPoints.push([lat, lng]);
+  renderPolyOnMap();
+  var cnt=_mapPolyPoints.length;
+  document.getElementById('poly-hint').textContent=
+    cnt<3 ? '꼭짓점 '+cnt+'개 · 최소 3개 필요' : '꼭짓점 '+cnt+'개 완성 ✓ (계속 추가 가능)';
+}
+
+function renderPolyOnMap(){
+  // 기존 폴리 레이어 제거
+  if(_mapPolygon){ _mapInstance.removeLayer(_mapPolygon); _mapPolygon=null; }
+  _mapPolyMarkers.forEach(function(m){ _mapInstance.removeLayer(m); });
+  _mapPolyMarkers=[];
+
+  if(_mapPolyPoints.length===0) return;
+
+  // 꼭짓점 마커
+  _mapPolyPoints.forEach(function(p, i){
+    var icon=L.divIcon({
+      className:'',
+      html:'<div style="width:14px;height:14px;border-radius:50%;background:#E24B4A;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>',
+      iconSize:[14,14], iconAnchor:[7,7]
+    });
+    var m=L.marker([p[0],p[1]],{icon:icon,draggable:true})
+      .addTo(_mapInstance);
+    (function(idx){ m.on('drag', function(e){ _mapPolyPoints[idx]=[e.latlng.lat,e.latlng.lng]; renderPolyOnMap(); }); })(i);
+    _mapPolyMarkers.push(m);
+  });
+
+  // 폴리곤 (3개 이상)
+  if(_mapPolyPoints.length>=3){
+    _mapPolygon=L.polygon(_mapPolyPoints,{
+      color:'#E24B4A', fillColor:'#FCEBEB', fillOpacity:0.35, weight:2.5, dashArray:'6,4'
+    }).addTo(_mapInstance);
+  } else if(_mapPolyPoints.length>=2){
+    // 2개면 선으로만
+    _mapPolygon=L.polyline(_mapPolyPoints,{color:'#E24B4A',weight:2,dashArray:'6,4'}).addTo(_mapInstance);
+  }
+}
+
+function undoPolyPoint(){
+  if(_mapPolyPoints.length===0) return;
+  _mapPolyPoints.pop();
+  renderPolyOnMap();
+  var cnt=_mapPolyPoints.length;
+  document.getElementById('poly-hint').textContent=
+    cnt===0?'지도를 탭하여 꼭짓점 추가':cnt<3?'꼭짓점 '+cnt+'개 · 최소 3개 필요':'꼭짓점 '+cnt+'개 완성 ✓';
+}
+
+function clearPoly(){
+  _mapPolyPoints=[];
+  renderPolyOnMap();
+  document.getElementById('poly-hint').textContent='지도를 탭하여 꼭짓점 추가 · 3개 이상 찍으면 완성';
+}
+
 
 function setMapPin(lat, lng){
   _mapLat = lat; _mapLng = lng;
@@ -1624,18 +1737,31 @@ function closeMapModal(){
 }
 
 function confirmMapLocation(){
-  if(_mapLat===null){ showToast('지도에서 위치를 먼저 선택해주세요.','warn'); return; }
-  var radius = parseInt(document.getElementById('map-radius').value)||80;
   var obj = typeof ZONES[_mapZoneIdx]==='object'
     ? ZONES[_mapZoneIdx]
-    : {name:ZONES[_mapZoneIdx],lat:null,lng:null,radius:80};
-  obj.lat = _mapLat;
-  obj.lng = _mapLng;
-  obj.radius = radius;
+    : {name:ZONES[_mapZoneIdx],lat:null,lng:null,radius:80,polygon:null};
+
+  if(_drawMode==='polygon'){
+    if(_mapPolyPoints.length<3){ showToast('꼭짓점을 3개 이상 찍어주세요.','warn'); return; }
+    // 폴리곤 중심점 계산 (평균)
+    var sumLat=0, sumLng=0;
+    _mapPolyPoints.forEach(function(p){ sumLat+=p[0]; sumLng+=p[1]; });
+    obj.lat = sumLat/_mapPolyPoints.length;
+    obj.lng = sumLng/_mapPolyPoints.length;
+    obj.polygon = _mapPolyPoints.slice();
+    obj.radius = null;
+  } else {
+    if(_mapLat===null){ showToast('지도를 탭하여 위치를 선택해주세요.','warn'); return; }
+    obj.lat = _mapLat;
+    obj.lng = _mapLng;
+    obj.radius = parseInt(document.getElementById('map-radius').value)||80;
+    obj.polygon = null;
+  }
+
   ZONES[_mapZoneIdx] = obj;
-  if(_mapCircle) _mapCircle.setRadius(radius);
-  updateOneZone(obj);  // 해당 장소만 업데이트
+  updateOneZone(obj);
   closeMapModal();
+  showToast(obj.name+' 구역 저장됐어요!','ok');
 }
 
 function addZone(){
@@ -2025,10 +2151,11 @@ function renderViolationMap(){
   // GPS 등록된 구역만 필터
   var mappedZones = ZONES.filter(function(z){
     var obj = typeof z==='object' ? z : {name:z};
-    return obj.lat && obj.lng;
+    return (obj.lat && obj.lng) || (obj.polygon && obj.polygon.length>=3);
   }).map(function(z){
     var obj = typeof z==='object' ? z : {name:z};
-    return { name:obj.name, lat:obj.lat, lng:obj.lng, radius:obj.radius||80, count:zoneCounts[obj.name]||0 };
+    return { name:obj.name, lat:obj.lat, lng:obj.lng, radius:obj.radius||80,
+             polygon:obj.polygon||null, count:zoneCounts[obj.name]||0 };
   });
 
   var unmapped = Object.keys(zoneCounts).filter(function(name){
@@ -2059,12 +2186,15 @@ function renderViolationMap(){
 
   var maxCount = Math.max.apply(null, mappedZones.map(function(z){ return z.count; }).concat([1]));
 
-  // ── 위반 없는 구역: 작은 회색 점만 표시 ──
+  // ── 위반 없는 구역: 작은 회색 표시 ──
   mappedZones.filter(function(z){ return z.count===0; }).forEach(function(z){
-    L.circleMarker([z.lat, z.lng], {
-      radius: 4, color:'#ccc', fillColor:'#e5e5ea', fillOpacity:0.8, weight:1
-    }).addTo(_violMapInstance)
-      .bindPopup('<b>'+z.name+'</b><br>위반 없음');
+    if(z.polygon && z.polygon.length>=3){
+      L.polygon(z.polygon,{color:'#ccc',fillColor:'#e5e5ea',fillOpacity:0.3,weight:1})
+        .addTo(_violMapInstance).bindPopup('<b>'+z.name+'</b><br>위반 없음');
+    } else if(z.lat && z.lng){
+      L.circleMarker([z.lat, z.lng],{radius:4,color:'#ccc',fillColor:'#e5e5ea',fillOpacity:0.8,weight:1})
+        .addTo(_violMapInstance).bindPopup('<b>'+z.name+'</b><br>위반 없음');
+    }
   });
 
   // ── 위반 있는 구역만 강조 표시 ──
@@ -2080,25 +2210,23 @@ function renderViolationMap(){
     var color = 'rgb('+r+','+g+','+b+')';
 
     if(viewType==='heat'){
-      // 히트맵: 반경 원 (위반 건수에 비례한 크기)
-      var heatRadius = z.radius * (0.4 + ratio * 0.6);
-      L.circle([z.lat, z.lng], {
-        radius: heatRadius,
-        color: color, fillColor: color,
-        fillOpacity: 0.25 + ratio * 0.45,
-        weight: 2
-      }).addTo(_violMapInstance)
-        .bindPopup('<b>'+z.name+'</b><br>위반 '+z.count+'건');
-      // 구역명+건수 라벨 (클릭 팝업 대신 항상 표시)
-      var lbl = L.divIcon({
-        className:'',
-        html:'<div style="font-size:11px;font-weight:700;color:'+color
-          +';background:rgba(255,255,255,0.9);padding:2px 7px;border-radius:20px'
-          +';white-space:nowrap;border:1.5px solid '+color+';line-height:1.5">'
-          +z.name+' '+z.count+'건</div>',
-        iconSize:[0,0], iconAnchor:[0,0]
-      });
-      L.marker([z.lat, z.lng], {icon:lbl, interactive:false}).addTo(_violMapInstance);
+      if(z.polygon && z.polygon.length>=3){
+        L.polygon(z.polygon,{color:color,fillColor:color,fillOpacity:0.25+ratio*0.45,weight:2.5})
+          .addTo(_violMapInstance).bindPopup('<b>'+z.name+'</b><br>위반 '+z.count+'건');
+      } else if(z.lat && z.lng){
+        var heatRadius = (z.radius||80) * (0.4 + ratio * 0.6);
+        L.circle([z.lat,z.lng],{radius:heatRadius,color:color,fillColor:color,fillOpacity:0.25+ratio*0.45,weight:2})
+          .addTo(_violMapInstance).bindPopup('<b>'+z.name+'</b><br>위반 '+z.count+'건');
+      }
+      var cLat=z.lat, cLng=z.lng;
+      if(z.polygon && z.polygon.length>=3){
+        var sLat=0,sLng=0; z.polygon.forEach(function(p){sLat+=p[0];sLng+=p[1];});
+        cLat=sLat/z.polygon.length; cLng=sLng/z.polygon.length;
+      }
+      if(cLat && cLng){
+        var lbl=L.divIcon({className:'',html:'<div style="font-size:11px;font-weight:700;color:'+color+';background:rgba(255,255,255,0.9);padding:2px 7px;border-radius:20px;white-space:nowrap;border:1.5px solid '+color+';line-height:1.5">'+z.name+' '+z.count+'건</div>',iconSize:[0,0],iconAnchor:[0,0]});
+        L.marker([cLat,cLng],{icon:lbl,interactive:false}).addTo(_violMapInstance);
+      }
     } else {
       // 건수 표시: 버블 마커
       var size = Math.round(28 + ratio * 20); // 28~48px
@@ -2112,9 +2240,16 @@ function renderViolationMap(){
           +'">'+z.count+'</div>',
         iconSize:[size,size], iconAnchor:[size/2,size/2]
       });
-      L.marker([z.lat, z.lng], {icon:icon})
-        .addTo(_violMapInstance)
-        .bindPopup('<b>'+z.name+'</b><br>위반 <b>'+z.count+'</b>건<br><span style="font-size:11px;color:#8e8e93">탭하여 이력 조회</span>');
+      var bLat=z.lat, bLng=z.lng;
+      if(z.polygon && z.polygon.length>=3){
+        var sLat=0,sLng=0; z.polygon.forEach(function(p){sLat+=p[0];sLng+=p[1];});
+        bLat=sLat/z.polygon.length; bLng=sLng/z.polygon.length;
+        L.polygon(z.polygon,{color:color,fillColor:color,fillOpacity:0.2,weight:2,dashArray:'4,3'}).addTo(_violMapInstance);
+      }
+      if(bLat && bLng){
+        L.marker([bLat,bLng],{icon:icon}).addTo(_violMapInstance)
+          .bindPopup('<b>'+z.name+'</b><br>위반 <b>'+z.count+'</b>건');
+      }
     }
   });
 
