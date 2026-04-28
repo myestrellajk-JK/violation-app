@@ -750,7 +750,9 @@ function normalizeRow(r){
     timestamp: ts,
     photos: Array.isArray(r.photos) ? r.photos : [],
     org: r.org || '',
-    activity: r.activity || ''
+    activity: r.activity || '',
+    lat: (r.lat && !isNaN(r.lat)) ? parseFloat(r.lat) : null,
+    lng: (r.lng && !isNaN(r.lng)) ? parseFloat(r.lng) : null
   };
 }
 
@@ -853,7 +855,9 @@ async function sd(entry){
       severity:sevLabel(entry.severity),
       note:entry.note||'',
       reporter:entry.reporter||'',
-      timestamp:entry.timestamp
+      timestamp:entry.timestamp,
+      lat:entry.lat||'',
+      lng:entry.lng||''
     });
     var res = await jsonpCall(params);
     if(res && res.ok) showToast('저장 완료','ok');
@@ -1845,6 +1849,16 @@ function addPolyPoint(lat, lng){
   if(cnt>=3) refreshOverlapDisplay();
 }
 
+function renderPolyEdgeOnly(){
+  // 드래그 중: 마커는 그대로 두고 폴리곤 라인만 갱신
+  if(_mapPolygon){ _mapInstance.removeLayer(_mapPolygon); _mapPolygon=null; }
+  if(_mapPolyPoints.length>=3){
+    _mapPolygon=L.polygon(_mapPolyPoints,{color:'#E24B4A',fillColor:'#FCEBEB',fillOpacity:0.35,weight:2.5,dashArray:'6,4'}).addTo(_mapInstance);
+  } else if(_mapPolyPoints.length>=2){
+    _mapPolygon=L.polyline(_mapPolyPoints,{color:'#E24B4A',weight:2,dashArray:'6,4'}).addTo(_mapInstance);
+  }
+}
+
 function renderPolyOnMap(){
   // 기존 폴리 레이어 제거
   if(_mapPolygon){ _mapInstance.removeLayer(_mapPolygon); _mapPolygon=null; }
@@ -1853,16 +1867,29 @@ function renderPolyOnMap(){
 
   if(_mapPolyPoints.length===0) return;
 
-  // 꼭짓점 마커
+  // 꼭짓점 마커 (드래그 영역 32px, 시각적 점 18px)
   _mapPolyPoints.forEach(function(p, i){
     var icon=L.divIcon({
       className:'',
-      html:'<div style="width:14px;height:14px;border-radius:50%;background:#E24B4A;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>',
-      iconSize:[14,14], iconAnchor:[7,7]
+      html:'<div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:grab">'
+        +'<div style="width:18px;height:18px;border-radius:50%;background:#E24B4A;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4);position:relative">'
+        +'<span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:10px;font-weight:700">'+(i+1)+'</span>'
+        +'</div></div>',
+      iconSize:[32,32], iconAnchor:[16,16]
     });
-    var m=L.marker([p[0],p[1]],{icon:icon,draggable:true})
+    var m=L.marker([p[0],p[1]],{icon:icon,draggable:true,autoPan:true,autoPanPadding:[20,20]})
       .addTo(_mapInstance);
-    (function(idx){ m.on('drag', function(e){ _mapPolyPoints[idx]=[e.latlng.lat,e.latlng.lng]; renderPolyOnMap(); }); })(i);
+    (function(idx){
+      m.on('drag', function(e){ _mapPolyPoints[idx]=[e.latlng.lat,e.latlng.lng]; renderPolyEdgeOnly(); });
+      m.on('dragend', function(e){ _mapPolyPoints[idx]=[e.latlng.lat,e.latlng.lng]; renderPolyOnMap(); refreshOverlapDisplay(); });
+      m.on('click', function(){
+        if(_mapPolyPoints.length>3 && confirm('이 꼭짓점을 삭제할까요?')){
+          _mapPolyPoints.splice(idx,1);
+          renderPolyOnMap();
+          refreshOverlapDisplay();
+        }
+      });
+    })(i);
     _mapPolyMarkers.push(m);
   });
 
@@ -1937,9 +1964,33 @@ function gotoMyLocation(){
 
 function closeMapModal(){
   document.getElementById('map-modal').style.display='none';
+  // 기록 GPS 모드에서 숨겼던 버튼 복원
+  var c1=document.getElementById('mode-circle'), c2=document.getElementById('mode-polygon');
+  if(c1) c1.style.display='';
+  if(c2) c2.style.display='';
+  _recordGPSId = null;
 }
 
 function confirmMapLocation(){
+  // 기록 GPS 모드
+  if(_mapZoneIdx === -2){
+    if(_mapLat===null){ showToast('지도를 탭하여 위치를 선택해주세요.','warn'); return; }
+    var v = viols.find(function(x){ return x.id===_recordGPSId; });
+    if(!v){ showToast('기록을 찾을 수 없어요.','err'); return; }
+    v.lat = _mapLat;
+    v.lng = _mapLng;
+    // Apps Script 저장 (sd 함수 활용)
+    sd(v).then ? null : null;
+    sd(v);
+    closeMapModal();
+    // 모달 옵션 복원
+    document.getElementById('mode-circle').style.display='';
+    document.getElementById('mode-polygon').style.display='';
+    showToast('위치 저장됐어요!','ok');
+    renderHist();
+    return;
+  }
+
   var obj = typeof ZONES[_mapZoneIdx]==='object'
     ? ZONES[_mapZoneIdx]
     : {name:ZONES[_mapZoneIdx],lat:null,lng:null,radius:80,polygon:null};
@@ -2261,12 +2312,113 @@ function renderHist(){
       +rbadges
       +(v.note?'<div style="margin-bottom:10px"><div class="dlbl">비고</div><div style="font-size:13px;color:#666;line-height:1.5">'+v.note+'</div></div>':'')
       +(v.photos&&v.photos.length?photoHtml(v.photos):'')
+      +gpsBlock(v)
       +'<div class="delarea">'
       +(isDel?'<span style="font-size:12px;color:#666">삭제하시겠습니까?</span><button class="delcbtn" onclick="doDelete(\''+v.id+'\')">삭제</button><button class="delxbtn" onclick="cancelDel()">취소</button>'
              :'<button class="delbtn" onclick="confDel(\''+v.id+'\')">기록 삭제</button>')
       +'</div></div></div>';
   }).join('');
 }
+
+function gpsBlock(v){
+  var hasGPS = v.lat && v.lng;
+  var safeId = String(v.id).replace(/'/g,'');
+  if(hasGPS){
+    return '<div style="margin-bottom:10px;padding:10px 12px;background:#EAF3DE;border-radius:10px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">'
+      +'<div>'
+      +'<div class="dlbl" style="margin-bottom:2px">📍 정확한 위치</div>'
+      +'<div style="font-size:12px;color:#3B6D11;font-family:monospace">'+v.lat.toFixed(6)+', '+v.lng.toFixed(6)+'</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:6px">'
+      +'<button data-id="'+safeId+'" onclick="viewRecordOnMap(this.dataset.id)" style="padding:5px 10px;border-radius:6px;border:0.5px solid #3B6D11;background:#fff;color:#3B6D11;font-size:11px;cursor:pointer;font-family:inherit">지도</button>'
+      +'<button data-id="'+safeId+'" onclick="setRecordGPS(this.dataset.id)" style="padding:5px 10px;border-radius:6px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:11px;cursor:pointer;font-family:inherit">수정</button>'
+      +'</div>'
+      +'</div>'
+      +'</div>';
+  }
+  return '<div style="margin-bottom:10px">'
+    +'<button data-id="'+safeId+'" onclick="setRecordGPS(this.dataset.id)" style="width:100%;padding:10px;border-radius:10px;border:0.5px dashed #185FA5;background:#fff;color:#185FA5;font-size:12px;cursor:pointer;font-family:inherit">📍 GPS 위치 추가하기</button>'
+    +'</div>';
+}
+
+// 위반 기록에 GPS 추가/수정 - 지도 picker 띄움
+var _recordGPSId = null;
+
+function setRecordGPS(id){
+  _recordGPSId = id;
+  var v = viols.find(function(x){ return x.id===id; });
+  if(!v){ showToast('기록을 찾을 수 없어요.','err'); return; }
+
+  document.getElementById('map-modal-title').textContent = '위반 위치 지정 (' + (v.plate||'기록') + ')';
+  document.getElementById('map-modal').style.display = 'flex';
+
+  // 임시: _mapZoneIdx -1 로 설정하여 zone 저장 모드와 구분
+  _mapZoneIdx = -2;  // 기록 GPS 모드
+  setDrawMode('circle');
+
+  setTimeout(function(){
+    var lat = v.lat || 34.7647;
+    var lng = v.lng || 126.3869;
+    // 해당 zone의 GPS가 있으면 그 위치로 시작
+    if(!v.lat){
+      var zoneObj = ZONES.find(function(z){
+        return (typeof z==='object'?z.name:z) === v.zone;
+      });
+      if(zoneObj && typeof zoneObj==='object'){
+        if(zoneObj.lat) { lat = zoneObj.lat; lng = zoneObj.lng; }
+        else if(zoneObj.polygon && zoneObj.polygon.length){
+          var sl=0,sn=0; zoneObj.polygon.forEach(function(p){sl+=p[0];sn+=p[1];});
+          lat = sl/zoneObj.polygon.length; lng = sn/zoneObj.polygon.length;
+        }
+      }
+    }
+
+    if(!_mapInstance){
+      _mapInstance = L.map('zone-map',{tap:false}).setView([lat,lng],18);
+      var streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:20});
+      var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:20});
+      streetLayer.addTo(_mapInstance);
+      L.control.layers({'일반':streetLayer, '위성':satelliteLayer},null,{position:'topright'}).addTo(_mapInstance);
+      _mapInstance.on('click', function(e){ onMapClick(e.latlng.lat, e.latlng.lng); });
+    } else {
+      clearMapLayers();
+      _mapInstance.invalidateSize();
+      _mapInstance.setView([lat,lng], v.lat?18:17);
+    }
+
+    if(v.lat && v.lng){
+      setMapPin(v.lat, v.lng);
+    }
+
+    // 등록된 zone들 참고용 표시
+    ZONES.forEach(function(z){
+      var zo=typeof z==='object'?z:{name:z,lat:null,lng:null,polygon:null};
+      if(zo.polygon && zo.polygon.length>=3){
+        L.polygon(zo.polygon,{color:'#185FA5',fillColor:'#185FA5',fillOpacity:0.08,weight:1.2,dashArray:'5,4'})
+          .addTo(_mapInstance).bindPopup(zo.name);
+      } else if(zo.lat && zo.lng){
+        L.circle([zo.lat,zo.lng],{radius:zo.radius||80,color:'#185FA5',fillColor:'#185FA5',fillOpacity:0.07,weight:1.2,dashArray:'5,4'})
+          .addTo(_mapInstance).bindPopup(zo.name);
+      }
+    });
+  }, 150);
+
+  // 반경/폴리곤 옵션 숨김 — 핀 하나만 찍게
+  document.getElementById('circle-options').style.display='none';
+  document.getElementById('polygon-options').style.display='none';
+  document.getElementById('mode-circle').style.display='none';
+  document.getElementById('mode-polygon').style.display='none';
+  document.getElementById('map-modal-hint').textContent = '지도를 탭하여 위반 발생 지점을 정확히 지정하세요';
+}
+
+// 위반 위치 지도에서 보기
+function viewRecordOnMap(id){
+  var v = viols.find(function(x){ return x.id===id; });
+  if(!v || !v.lat) return;
+  var w = window.open('https://www.google.com/maps/?q='+v.lat+','+v.lng, '_blank');
+}
+
 
 function photoHtml(photos){
   var thumbs = photos.map(function(b64, i){
