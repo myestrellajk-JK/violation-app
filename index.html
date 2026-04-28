@@ -564,11 +564,12 @@
           style="flex:1;padding:7px 0;border-radius:8px;border:0.5px solid #185FA5;background:#fff;color:#185FA5;font-size:12px;cursor:pointer;font-family:inherit">📍 현재위치</button>
       </div>
       <!-- 원형 옵션 -->
-      <div id="circle-options" style="padding:6px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
+      <div id="circle-options" style="padding:6px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0;border-bottom:0.5px solid #f2f2f7;flex-wrap:wrap">
         <span style="font-size:12px;color:#8e8e93;flex-shrink:0">반경</span>
         <input type="number" id="map-radius" value="80" min="10" max="500" step="10"
           style="width:65px;padding:4px 8px;border:0.5px solid #ccc;border-radius:6px;font-size:13px;text-align:center" onchange="updateCircleRadius()">
-        <span style="font-size:12px;color:#8e8e93">m · 지도 탭하여 중심점 지정</span>
+        <span style="font-size:12px;color:#8e8e93;flex:1">m · 지도 탭하여 중심점 지정</span>
+        <button onclick="clearCircle()" style="padding:4px 10px;border-radius:6px;border:0.5px solid #f09595;background:#FCEBEB;color:#A32D2D;font-size:11px;cursor:pointer;font-family:inherit">초기화</button>
       </div>
       <!-- 폴리곤 안내 -->
       <div id="polygon-options" style="display:none;padding:6px 16px;align-items:center;gap:8px;flex-shrink:0;border-bottom:0.5px solid #f2f2f7;flex-wrap:wrap">
@@ -1890,6 +1891,16 @@ function clearPoly(){
   _mapPolyPoints=[];
   renderPolyOnMap();
   document.getElementById('poly-hint').textContent='지도를 탭하여 꼭짓점 추가 · 3개 이상 찍으면 완성';
+  refreshOverlapDisplay();
+}
+
+function clearCircle(){
+  if(_mapMarker){ _mapInstance.removeLayer(_mapMarker); _mapMarker=null; }
+  if(_mapCircle){ _mapInstance.removeLayer(_mapCircle); _mapCircle=null; }
+  _mapLat=null; _mapLng=null;
+  document.getElementById('map-radius').value=80;
+  refreshOverlapDisplay();
+  showToast('원형 위치 초기화됐어요. 지도를 탭하여 다시 지정하세요.','ok');
 }
 
 
