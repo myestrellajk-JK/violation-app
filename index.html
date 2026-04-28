@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#ffffff">
@@ -536,7 +537,7 @@
         <span style="font-size:12px;color:#8e8e93">m · 지도 탭하여 중심점 지정</span>
       </div>
       <!-- 폴리곤 안내 -->
-      <div id="polygon-options" style="display:none;padding:6px 16px;display:none;align-items:center;gap:8px;flex-shrink:0;border-bottom:0.5px solid #f2f2f7">
+      <div id="polygon-options" style="display:none;padding:6px 16px;align-items:center;gap:8px;flex-shrink:0;border-bottom:0.5px solid #f2f2f7;flex-wrap:wrap">
         <span style="font-size:12px;color:#8e8e93;flex:1" id="poly-hint">지도를 탭하여 꼭짓점 추가 · 3개 이상 찍으면 완성</span>
         <button onclick="undoPolyPoint()" style="padding:4px 10px;border-radius:6px;border:0.5px solid #ccc;background:#fff;color:#666;font-size:11px;cursor:pointer;font-family:inherit">↩ 되돌리기</button>
         <button onclick="clearPoly()" style="padding:4px 10px;border-radius:6px;border:0.5px solid #f09595;background:#FCEBEB;color:#A32D2D;font-size:11px;cursor:pointer;font-family:inherit">초기화</button>
@@ -1303,12 +1304,21 @@ function applyConfig(cfg){
   // 장소목록 (GPS 포함) — name 필드 정제
   if(cfg.zones && cfg.zones.length){
     ZONES = cfg.zones.map(function(z){
+      var poly = null;
+      if(Array.isArray(z.polygon) && z.polygon.length>=3){
+        // 이중 배열 보장
+        poly = z.polygon.map(function(p){
+          if(Array.isArray(p) && p.length>=2) return [parseFloat(p[0]), parseFloat(p[1])];
+          return null;
+        }).filter(function(p){ return p && !isNaN(p[0]) && !isNaN(p[1]); });
+        if(poly.length<3) poly = null;
+      }
       return {
         name:    String(z.name||'').trim(),
         lat:     (z.lat   && !isNaN(z.lat))    ? parseFloat(z.lat)   : null,
         lng:     (z.lng   && !isNaN(z.lng))    ? parseFloat(z.lng)   : null,
         radius:  (z.radius && !isNaN(z.radius)) ? parseInt(z.radius)  : 80,
-        polygon: Array.isArray(z.polygon) ? z.polygon : null
+        polygon: poly
       };
     }).filter(function(z){ return z.name; });
   }
@@ -1572,11 +1582,13 @@ var _drawMode = 'circle'; // 'circle' | 'polygon'
 function registerGPSForZone(i){
   _mapZoneIdx = i;
   var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80,polygon:null};
+  console.log('[GPS등록] 구역:', obj.name, 'polygon:', obj.polygon, 'lat/lng:', obj.lat, obj.lng);
   document.getElementById('map-modal-title').textContent = obj.name + ' 구역 지정';
   document.getElementById('map-modal').style.display = 'flex';
 
   // 기존 등록 유형에 따라 초기 모드 설정
-  if(obj.polygon && obj.polygon.length) setDrawMode('polygon');
+  var hasPoly = obj.polygon && Array.isArray(obj.polygon) && obj.polygon.length>=3;
+  if(hasPoly) setDrawMode('polygon');
   else setDrawMode('circle');
 
   setTimeout(function(){
@@ -1593,16 +1605,16 @@ function registerGPSForZone(i){
     }
 
     // 기존 데이터 복원
-    if(obj.polygon && obj.polygon.length){
-      _mapPolyPoints = obj.polygon.slice();
+    if(hasPoly){
+      _mapPolyPoints = obj.polygon.map(function(p){ return [p[0], p[1]]; });
       renderPolyOnMap();
-      var latlngs = obj.polygon.map(function(p){ return [p[0],p[1]]; });
-      _mapInstance.fitBounds(latlngs, {padding:[30,30]});
+      _mapInstance.fitBounds(_mapPolyPoints, {padding:[40,40]});
+      document.getElementById('poly-hint').textContent = '꼭짓점 '+_mapPolyPoints.length+'개 등록됨 ✓ (드래그/추가 가능)';
+    } else if(obj.lat && obj.lng){
+      _mapInstance.setView([obj.lat, obj.lng], 17);
+      setMapPin(obj.lat, obj.lng);
     } else {
-      var lat = obj.lat || defaultLat;
-      var lng = obj.lng || defaultLng;
-      _mapInstance.setView([lat,lng],17);
-      if(_drawMode==='circle') setMapPin(lat,lng);
+      _mapInstance.setView([defaultLat, defaultLng], 17);
     }
 
     // 기존 등록 구역 전체 표시 (겹침 확인용)
@@ -1670,7 +1682,9 @@ function setDrawMode(mode){
   } else {
     pBtn.style.cssText='flex:1;padding:7px 0;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit';
     cBtn.style.cssText='flex:1;padding:7px 0;border-radius:8px;border:0.5px solid #ccc;background:#fff;color:#8e8e93;font-size:12px;cursor:pointer;font-family:inherit';
-    cOpt.style.display='none'; pOpt.style.display='flex';
+    cOpt.style.display='none';
+    pOpt.style.display='flex';
+    pOpt.style.flexWrap='wrap';
     hint.textContent='꼭짓점을 탭하여 추가 → 3개 이상이면 자동 완성';
   }
 }
@@ -1684,11 +1698,15 @@ function onMapClick(lat, lng){
 }
 
 function clearMapLayers(){
-  if(_mapMarker){ _mapInstance.removeLayer(_mapMarker); _mapMarker=null; }
-  if(_mapCircle){ _mapInstance.removeLayer(_mapCircle); _mapCircle=null; }
-  if(_mapPolygon){ _mapInstance.removeLayer(_mapPolygon); _mapPolygon=null; }
-  _mapPolyMarkers.forEach(function(m){ _mapInstance.removeLayer(m); });
+  if(!_mapInstance) return;
+  // 모든 비-타일 레이어 제거 (참조 마커, 폴리곤, 원, 핀 모두)
+  _mapInstance.eachLayer(function(layer){
+    if(!(layer instanceof L.TileLayer)) _mapInstance.removeLayer(layer);
+  });
+  _mapMarker=null; _mapCircle=null; _mapPolygon=null;
   _mapPolyMarkers=[];
+  _mapPolyPoints=[];
+  _mapLat=null; _mapLng=null;
 }
 
 function updateCircleRadius(){
@@ -1758,8 +1776,6 @@ function clearPoly(){
 function setMapPin(lat, lng){
   _mapLat = lat; _mapLng = lng;
   var radius = parseInt(document.getElementById('map-radius').value)||80;
-  document.getElementById('map-coords').textContent =
-    '위도 '+lat.toFixed(6)+' · 경도 '+lng.toFixed(6);
 
   if(_mapMarker){
     _mapMarker.setLatLng([lat, lng]);
