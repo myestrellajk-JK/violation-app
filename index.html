@@ -1579,6 +1579,90 @@ var _mapLat = null;
 var _mapLng = null;
 var _drawMode = 'circle'; // 'circle' | 'polygon'
 
+function checkOverlapWithCurrent(otherZone){
+  // 현재 편집 중인 모드/데이터 기준 겹침 검사
+  if(_drawMode==='polygon' && _mapPolyPoints.length>=3){
+    // 현재 폴리곤 vs 다른 구역
+    if(otherZone.polygon && otherZone.polygon.length>=3){
+      return polygonsOverlap(_mapPolyPoints, otherZone.polygon);
+    } else if(otherZone.lat && otherZone.lng){
+      // 원형 중심이 현재 폴리곤 안에 있거나, 폴리곤 꼭짓점이 원 안에 있으면 겹침
+      if(pointInPolygon(otherZone.lat, otherZone.lng, _mapPolyPoints)) return true;
+      var r = otherZone.radius||80;
+      for(var k=0;k<_mapPolyPoints.length;k++){
+        if(calcDistance(_mapPolyPoints[k][0],_mapPolyPoints[k][1],otherZone.lat,otherZone.lng) <= r) return true;
+      }
+    }
+  } else if(_drawMode==='circle' && _mapLat){
+    var curR = parseInt(document.getElementById('map-radius').value)||80;
+    if(otherZone.polygon && otherZone.polygon.length>=3){
+      if(pointInPolygon(_mapLat, _mapLng, otherZone.polygon)) return true;
+      for(var k=0;k<otherZone.polygon.length;k++){
+        if(calcDistance(otherZone.polygon[k][0],otherZone.polygon[k][1],_mapLat,_mapLng) <= curR) return true;
+      }
+    } else if(otherZone.lat && otherZone.lng){
+      var d = calcDistance(_mapLat,_mapLng,otherZone.lat,otherZone.lng);
+      return d < (curR + (otherZone.radius||80));
+    }
+  }
+  return false;
+}
+
+function polygonsOverlap(a, b){
+  // 한 폴리곤의 점이 다른 폴리곤 안에 있으면 겹침
+  for(var i=0;i<a.length;i++) if(pointInPolygon(a[i][0],a[i][1],b)) return true;
+  for(var i=0;i<b.length;i++) if(pointInPolygon(b[i][0],b[i][1],a)) return true;
+  return false;
+}
+
+function showOverlapWarning(){
+  if(!_mapInstance) return;
+  var overlapped = [];
+  ZONES.forEach(function(z,zi){
+    if(zi===_mapZoneIdx) return;
+    var zo = typeof z==='object'?z:{name:z,lat:null,lng:null,polygon:null};
+    if(((zo.lat && zo.lng) || (zo.polygon && zo.polygon.length>=3)) && checkOverlapWithCurrent(zo)){
+      overlapped.push(zo.name);
+    }
+  });
+  var hint = document.getElementById('map-modal-hint');
+  if(!hint) return;
+  if(overlapped.length){
+    hint.innerHTML = '⚠ <span style="color:#A32D2D;font-weight:600">'+overlapped.length+'개 구역과 겹침</span>: '+overlapped.slice(0,3).join(', ')+(overlapped.length>3?' 외':'');
+  } else {
+    hint.textContent = _drawMode==='circle' ? '지도를 탭하여 중심점 지정, 반경 조정' : '꼭짓점을 탭하여 추가 → 3개 이상이면 자동 완성';
+  }
+}
+
+function refreshOverlapDisplay(){
+  // 편집 중에 폴리곤/원형 변경 시 다른 구역들 색상 다시 그리기
+  if(!_mapInstance) return;
+  // 모든 레이어 제거 후 다시 그리기 (편집 중인 폴리곤/원은 별도 변수로 보존)
+  var keepPoly = _mapPolyPoints.slice();
+  var keepLat = _mapLat, keepLng = _mapLng;
+  clearMapLayers();
+  _mapPolyPoints = keepPoly;
+  _mapLat = keepLat; _mapLng = keepLng;
+  if(_drawMode==='polygon' && _mapPolyPoints.length) renderPolyOnMap();
+  if(_drawMode==='circle' && _mapLat) setMapPin(_mapLat, _mapLng);
+  // 다른 구역 다시 그리기
+  ZONES.forEach(function(z,zi){
+    if(zi===_mapZoneIdx) return;
+    var zo=typeof z==='object'?z:{name:z,lat:null,lng:null,radius:80,polygon:null};
+    if(!((zo.lat && zo.lng) || (zo.polygon && zo.polygon.length>=3))) return;
+    var overlapping = checkOverlapWithCurrent(zo);
+    var refColor = overlapping ? '#8e8e93' : '#185FA5';
+    var fillOp = overlapping ? 0.25 : 0.1;
+    var popup = '<b>'+zo.name+'</b>'+(overlapping?'<br><span style="color:#A32D2D">⚠ 겹침</span>':'');
+    if(zo.polygon && zo.polygon.length>=3){
+      L.polygon(zo.polygon,{color:refColor,fillColor:refColor,fillOpacity:fillOp,weight:overlapping?2.5:1.5,dashArray:overlapping?null:'5,4'}).addTo(_mapInstance).bindPopup(popup);
+    } else {
+      L.circle([zo.lat,zo.lng],{radius:zo.radius||80,color:refColor,fillColor:refColor,fillOpacity:fillOp,weight:overlapping?2.5:1.5,dashArray:overlapping?null:'5,4'}).addTo(_mapInstance).bindPopup(popup);
+    }
+  });
+  showOverlapWarning();
+}
+
 function registerGPSForZone(i){
   _mapZoneIdx = i;
   var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80,polygon:null};
@@ -1617,52 +1701,46 @@ function registerGPSForZone(i){
       _mapInstance.setView([defaultLat, defaultLng], 17);
     }
 
-    // 기존 등록 구역 전체 표시 (겹침 확인용)
+    // 기존 등록 구역 표시 + 현재 편집 중과 겹침 검사
     ZONES.forEach(function(z,zi){
       var zo=typeof z==='object'?z:{name:z,lat:null,lng:null,radius:80,polygon:null};
-      if(zi===i) return; // 현재 편집 중인 구역 제외
-
+      if(zi===i) return;
       var isGPS = (zo.lat && zo.lng) || (zo.polygon && zo.polygon.length>=3);
       if(!isGPS) return;
 
-      var refColor = '#185FA5';
-      var popup = '<b>'+zo.name+'</b>';
+      // 현재 편집 중인 구역과 겹침 여부 확인
+      var overlapping = checkOverlapWithCurrent(zo);
+      var refColor = overlapping ? '#8e8e93' : '#185FA5';  // 겹치면 회색
+      var fillOp = overlapping ? 0.25 : 0.1;
+      var popup = '<b>'+zo.name+'</b>'+(overlapping?'<br><span style="color:#A32D2D">⚠ 현재 편집 구역과 겹침</span>':'');
 
       if(zo.polygon && zo.polygon.length>=3){
-        // 폴리곤 구역
         L.polygon(zo.polygon,{
-          color:refColor, fillColor:refColor,
-          fillOpacity:0.12, weight:1.5, dashArray:'5,4'
+          color:refColor, fillColor:refColor, fillOpacity:fillOp,
+          weight:overlapping?2.5:1.5, dashArray:overlapping?null:'5,4'
         }).addTo(_mapInstance).bindPopup(popup);
-        // 중심 라벨
         var sLat=0,sLng=0;
         zo.polygon.forEach(function(p){sLat+=p[0];sLng+=p[1];});
         var cLat=sLat/zo.polygon.length, cLng=sLng/zo.polygon.length;
-        var lbl=L.divIcon({
-          className:'',
-          html:'<div style="font-size:10px;color:'+refColor+';background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:4px;white-space:nowrap;border:0.5px solid '+refColor+'88;pointer-events:none">'+zo.name+'</div>',
-          iconSize:[0,0], iconAnchor:[0,0]
-        });
+        var lbl=L.divIcon({className:'',
+          html:'<div style="font-size:10px;color:'+refColor+';background:rgba(255,255,255,0.9);padding:1px 5px;border-radius:4px;white-space:nowrap;border:0.5px solid '+refColor+'88;pointer-events:none;font-weight:'+(overlapping?'600':'400')+'">'+(overlapping?'⚠ ':'')+zo.name+'</div>',
+          iconSize:[0,0], iconAnchor:[0,0]});
         L.marker([cLat,cLng],{icon:lbl,interactive:false}).addTo(_mapInstance);
       } else if(zo.lat && zo.lng){
-        // 원형 구역
         L.circle([zo.lat,zo.lng],{
-          radius:zo.radius||80,
-          color:refColor, fillColor:refColor,
-          fillOpacity:0.1, weight:1.5, dashArray:'5,4'
+          radius:zo.radius||80, color:refColor, fillColor:refColor, fillOpacity:fillOp,
+          weight:overlapping?2.5:1.5, dashArray:overlapping?null:'5,4'
         }).addTo(_mapInstance).bindPopup(popup);
-        // 중심 점 + 라벨
-        L.circleMarker([zo.lat,zo.lng],{
-          radius:4, color:refColor, fillColor:refColor, fillOpacity:0.9, weight:1
-        }).addTo(_mapInstance);
-        var lbl2=L.divIcon({
-          className:'',
-          html:'<div style="font-size:10px;color:'+refColor+';background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:4px;white-space:nowrap;border:0.5px solid '+refColor+'88;pointer-events:none">'+zo.name+'</div>',
-          iconSize:[0,0], iconAnchor:[-4,-4]
-        });
+        L.circleMarker([zo.lat,zo.lng],{radius:4,color:refColor,fillColor:refColor,fillOpacity:0.9,weight:1}).addTo(_mapInstance);
+        var lbl2=L.divIcon({className:'',
+          html:'<div style="font-size:10px;color:'+refColor+';background:rgba(255,255,255,0.9);padding:1px 5px;border-radius:4px;white-space:nowrap;border:0.5px solid '+refColor+'88;pointer-events:none;font-weight:'+(overlapping?'600':'400')+'">'+(overlapping?'⚠ ':'')+zo.name+'</div>',
+          iconSize:[0,0], iconAnchor:[-4,-4]});
         L.marker([zo.lat,zo.lng],{icon:lbl2,interactive:false}).addTo(_mapInstance);
       }
     });
+
+    // 겹친 구역 카운트 → 헤더 힌트 갱신
+    showOverlapWarning();
   }, 150);
 }
 
@@ -1692,6 +1770,7 @@ function setDrawMode(mode){
 function onMapClick(lat, lng){
   if(_drawMode==='circle'){
     setMapPin(lat, lng);
+    refreshOverlapDisplay();
   } else {
     addPolyPoint(lat, lng);
   }
@@ -1713,6 +1792,7 @@ function updateCircleRadius(){
   if(_mapCircle && _mapLat){
     var r=parseInt(document.getElementById('map-radius').value)||80;
     _mapCircle.setRadius(r);
+    refreshOverlapDisplay();
   }
 }
 
@@ -1723,6 +1803,7 @@ function addPolyPoint(lat, lng){
   var cnt=_mapPolyPoints.length;
   document.getElementById('poly-hint').textContent=
     cnt<3 ? '꼭짓점 '+cnt+'개 · 최소 3개 필요' : '꼭짓점 '+cnt+'개 완성 ✓ (계속 추가 가능)';
+  if(cnt>=3) refreshOverlapDisplay();
 }
 
 function renderPolyOnMap(){
@@ -1764,6 +1845,7 @@ function undoPolyPoint(){
   var cnt=_mapPolyPoints.length;
   document.getElementById('poly-hint').textContent=
     cnt===0?'지도를 탭하여 꼭짓점 추가':cnt<3?'꼭짓점 '+cnt+'개 · 최소 3개 필요':'꼭짓점 '+cnt+'개 완성 ✓';
+  refreshOverlapDisplay();
 }
 
 function clearPoly(){
