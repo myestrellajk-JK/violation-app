@@ -550,6 +550,24 @@
     </div>
   </div>
 
+  <!-- 문자 알림 모달 -->
+  <div id="notify-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9200;align-items:flex-end;justify-content:center;">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:640px;padding-bottom:env(safe-area-inset-bottom)">
+      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #e5e5ea">
+        <div style="font-size:15px;font-weight:600">📨 문자 알림 내용</div>
+        <button onclick="closeNotify()" style="border:none;background:transparent;font-size:20px;color:#aaa;cursor:pointer;padding:4px 8px;line-height:1">×</button>
+      </div>
+      <div style="padding:14px 16px">
+        <textarea id="notify-text" rows="8" style="width:100%;box-sizing:border-box;padding:12px;border:0.5px solid #e5e5ea;border-radius:10px;font-size:14px;font-family:inherit;line-height:1.7;background:#f9f9f9;resize:none;color:#1c1c1e"></textarea>
+        <div style="font-size:11px;color:#8e8e93;margin-top:6px">※ 조치 내용은 직접 수정 후 전송하세요</div>
+      </div>
+      <div style="padding:0 16px 16px;display:flex;gap:8px">
+        <button onclick="copyNotify()" style="flex:1;padding:13px;border-radius:12px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">📋 복사</button>
+        <button onclick="shareNotify()" id="share-btn" style="flex:1;padding:13px;border-radius:12px;border:none;background:#E24B4A;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">↗ 공유</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 차량 조회 팝업 -->
   <div id="carfind-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:12px;overflow:hidden;width:92%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
@@ -1912,7 +1930,86 @@ async function doSave(){
   btn.textContent='✓ 저장 완료'; btn.classList.add('ok');
   setTimeout(function(){ btn.textContent='위반 기록 저장'; btn.classList.remove('ok'); },2500);
   renderHist(); renderStats();
+  // 저장 후 문자 알림 모달 표시
+  showNotifyModal(entry);
 }
+
+function buildNotifyText(entry){
+  var d = new Date(entry.timestamp);
+  var dateStr = (d.getMonth()+1)+'월 '+d.getDate()+'일';
+  var timeStr = p2(d.getHours())+':'+p2(d.getMinutes());
+
+  // 활동 유형 (기타:내용 → 기타 부분만)
+  var actLabel = entry.activity || '';
+
+  // 위반 유형 한글
+  var typeLabel = entry.types.map(function(id){
+    var vt = VT.find(function(v){ return v.id===id; });
+    return vt ? vt.label : id;
+  }).join(', ');
+
+  // 위치
+  var loc = entry.zone || '';
+  if(entry.detail) loc += ' ' + entry.detail;
+
+  // 부서/위반자/차량
+  var person = [];
+  if(entry.plate) person.push(entry.plate);
+  if(entry.org)   person.push(entry.org);
+  if(entry.reporter) person.push(entry.reporter);
+
+  // 심각도
+  var sevMap = {low:'주의', mid:'경고', high:'심각'};
+  var sevLabel = sevMap[entry.severity] || '';
+
+  var lines = [];
+  lines.push('■ ' + (actLabel || '교통안전 위반 활동'));
+  lines.push('· 일시 : ' + dateStr + ' ' + timeStr);
+  if(loc)             lines.push('· 위치 : ' + loc);
+  if(person.length)   lines.push('· 대상 : ' + person.join(' '));
+  lines.push('· 내용 : ' + typeLabel + (sevLabel?' ('+sevLabel+')':''));
+  if(entry.note)      lines.push('· 비고 : ' + entry.note);
+  lines.push('· 조치 : ');  // 수동 입력
+  return lines.join('\n');
+}
+
+function showNotifyModal(entry){
+  document.getElementById('notify-text').value = buildNotifyText(entry);
+  document.getElementById('notify-modal').style.display = 'flex';
+  // Web Share API 지원 여부
+  var shareBtn = document.getElementById('share-btn');
+  if(shareBtn) shareBtn.style.display = navigator.share ? 'block' : 'none';
+}
+
+function closeNotify(){
+  document.getElementById('notify-modal').style.display = 'none';
+}
+
+function copyNotify(){
+  var txt = document.getElementById('notify-text').value;
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(txt).then(function(){
+      showToast('클립보드에 복사됐어요. 메신저에 붙여넣기 하세요!','ok');
+      closeNotify();
+    });
+  } else {
+    // fallback
+    var el = document.getElementById('notify-text');
+    el.select(); document.execCommand('copy');
+    showToast('복사됐어요!','ok');
+    closeNotify();
+  }
+}
+
+function shareNotify(){
+  var txt = document.getElementById('notify-text').value;
+  if(navigator.share){
+    navigator.share({ text: txt }).catch(function(){});
+  } else {
+    copyNotify();
+  }
+}
+
 
 var TAB_TITLES = {entry:'위반 입력', history:'이력 조회', stats:'통계 현황', admin:'관리'};
 function switchTab(t){
