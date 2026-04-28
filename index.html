@@ -1530,6 +1530,7 @@ function renderAdminZones(){
       +'<button onclick="editZone('+i+')" id="zone-edit-btn-'+i+'" style="padding:3px 8px;border-radius:5px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:10px;cursor:pointer;font-family:inherit">수정</button>'
       +'<button onclick="saveZoneItem('+i+')" id="zone-save-btn-'+i+'" style="display:none;padding:3px 8px;border-radius:5px;border:0.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:10px;cursor:pointer;font-family:inherit">저장</button>'
       +'<button onclick="registerGPSForZone('+i+')" style="padding:3px 8px;border-radius:5px;border:0.5px solid #185FA5;background:'+(hasGPS?'#EAF3DE':'#fff')+';color:'+(hasGPS?'#3B6D11':'#185FA5')+';font-size:10px;cursor:pointer;font-family:inherit">📍'+(hasGPS?'재등록':'GPS등록')+'</button>'
+      +(hasGPS?'<button onclick="clearZoneGPS('+i+')" style="padding:3px 8px;border-radius:5px;border:0.5px solid #BA7517;background:#FAEEDA;color:#BA7517;font-size:10px;cursor:pointer;font-family:inherit">GPS 초기화</button>':'')
       +'<button onclick="removeZone('+i+')" style="padding:3px 8px;border-radius:5px;border:0.5px solid #f0959588;background:#FCEBEB;color:#A32D2D;font-size:10px;cursor:pointer;font-family:inherit">삭제</button>';
     row.appendChild(topRow);
 
@@ -1928,6 +1929,20 @@ function addZone(){
   buildZone(); renderAdminZones();
   updateOneZone(newObj);
 }
+function clearZoneGPS(i){
+  var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i]};
+  if(!confirm('"'+obj.name+'"의 GPS 좌표를 초기화하시겠어요?\n장소는 그대로 유지됩니다.')) return;
+  obj.lat = null;
+  obj.lng = null;
+  obj.polygon = null;
+  obj.radius = 80;
+  ZONES[i] = obj;
+  buildZone();
+  renderAdminZones();
+  updateOneZone(obj);
+  showToast(obj.name+' GPS 초기화됐어요.','ok');
+}
+
 function removeZone(i){
   var obj = typeof ZONES[i]==='object' ? ZONES[i] : {name:ZONES[i],lat:null,lng:null,radius:80};
   var name = obj.name;
