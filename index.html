@@ -710,7 +710,52 @@ var CC = {주차:'#185FA5',속도:'#A32D2D',통행:'#D85A30',안전:'#3B6D11',�
 var CB = {주차:'#E6F1FB',속도:'#FCEBEB',통행:'#FAECE7',안전:'#EAF3DE',기타:'#F1EFE8'};
 var SEV = {low:{l:'주의',c:'#BA7517',b:'#FAEEDA'},mid:{l:'경고',c:'#D85A30',b:'#FAECE7'},high:{l:'심각',c:'#A32D2D',b:'#FCEBEB'}};
 
-var viols=[], selT=[], curSev='low', expId=null, delId=null;
+var viols=[], selT=[], curSev='low', expId=null, delId=null, editId=null;
+
+// ── 본인 입력 식별용 localStorage 헬퍼 ──
+// 동일 기기에서 본인이 입력한 위반 ID만 수정 가능
+var EDIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24시간
+var ADMIN_CONTACT = '안전기획부 (내선 ____)'; // 시간 초과 시 안내 문구
+
+function getMyIds(){
+  try{
+    var s = localStorage.getItem('myViolationIds');
+    return s ? JSON.parse(s) : {};
+  }catch(e){ return {}; }
+}
+function setMyIds(obj){
+  try{ localStorage.setItem('myViolationIds', JSON.stringify(obj)); }catch(e){}
+}
+function markMine(id){
+  var m = getMyIds();
+  m[id] = Date.now(); // 입력 시각 (수정 권한 만료 계산용)
+  setMyIds(m);
+  pruneMyIds();
+}
+function pruneMyIds(){
+  // 24시간 + 1일 지난 것은 정리 (스토리지 비대화 방지)
+  var m = getMyIds();
+  var cutoff = Date.now() - (EDIT_WINDOW_MS + 24*60*60*1000);
+  var changed = false;
+  Object.keys(m).forEach(function(k){ if(m[k] < cutoff){ delete m[k]; changed=true; } });
+  if(changed) setMyIds(m);
+}
+// 수정 가능 여부 + 사유 반환
+// returns: {ok:true} | {ok:false, reason:'time'|'notmine'|'notfound', remainMs?:number}
+function canEdit(v){
+  if(!v) return {ok:false, reason:'notfound'};
+  var m = getMyIds();
+  if(!m[v.id]) return {ok:false, reason:'notmine'};
+  var elapsed = Date.now() - m[v.id];
+  if(elapsed > EDIT_WINDOW_MS) return {ok:false, reason:'time'};
+  return {ok:true, remainMs: EDIT_WINDOW_MS - elapsed};
+}
+function fmtRemain(ms){
+  var totalMin = Math.max(0, Math.floor(ms/60000));
+  var h = Math.floor(totalMin/60), mn = totalMin%60;
+  if(h>0) return h+'시간 '+mn+'분';
+  return mn+'분';
+}
 
 function normalizeRow(r){
   var sevMap = {'주의':'low','경고':'mid','심각':'high'};
@@ -759,7 +804,8 @@ function normalizeRow(r){
     org: r.org || '',
     activity: r.activity || '',
     lat: (r.lat && !isNaN(r.lat)) ? parseFloat(r.lat) : null,
-    lng: (r.lng && !isNaN(r.lng)) ? parseFloat(r.lng) : null
+    lng: (r.lng && !isNaN(r.lng)) ? parseFloat(r.lng) : null,
+    editedAt: r.editedAt ? (typeof r.editedAt==='object' && r.editedAt.toISOString ? r.editedAt.toISOString() : String(r.editedAt)) : null
   };
 }
 
@@ -898,6 +944,32 @@ async function sdDelete(id){
   try{
     await jsonpCall(buildParams({action:'delete',id:id}));
   }catch(e){ showToast('삭제 실패: '+e.message,'err'); }
+}
+
+// 위반 기록 수정 — 백엔드(Apps Script)에 update 액션으로 전송
+async function sdUpdate(entry){
+  try{
+    var params = buildParams({
+      action:'update',
+      id:entry.id, plate:entry.plate, activity:entry.activity||'',
+      types:typeLabels(entry.types),
+      cat:catLabel(entry.types),
+      rule:ruleLabels(entry.types),
+      zone:entry.zone,
+      detail:entry.detail||'',
+      org:entry.org||'',
+      severity:sevLabel(entry.severity),
+      note:entry.note||'',
+      reporter:entry.reporter||'',
+      timestamp:entry.timestamp,
+      lat:entry.lat||'',
+      lng:entry.lng||'',
+      editedAt:entry.editedAt||''
+    });
+    var res = await jsonpCall(params);
+    if(res && res.ok) showToast('수정 완료','ok');
+    else showToast('수정 실패: 응답 오류','err');
+  }catch(e){ showToast('수정 실패: '+e.message,'err'); }
 }
 
 function setDefaultDatetime(){
@@ -1976,12 +2048,27 @@ function closeMapModal(){
   if(c1) c1.style.display='';
   if(c2) c2.style.display='';
   _recordGPSId = null;
+  _editGPSPending = false;
 }
 
 function confirmMapLocation(){
   // 기록 GPS 모드
   if(_mapZoneIdx === -2){
     if(_mapLat===null){ showToast('지도를 탭하여 위치를 선택해주세요.','warn'); return; }
+
+    // 편집 모드에서 호출된 경우 → 편집 버퍼에 반영, viols/백엔드는 [수정 저장] 시 일괄 처리
+    if(_editGPSPending && _editBuffer){
+      _editBuffer.lat = _mapLat;
+      _editBuffer.lng = _mapLng;
+      _editGPSPending = false;
+      closeMapModal();
+      document.getElementById('mode-circle').style.display='';
+      document.getElementById('mode-polygon').style.display='';
+      showToast('위치 설정 완료 — [수정 저장]을 눌러주세요.','ok');
+      renderHist();
+      return;
+    }
+
     var v = viols.find(function(x){ return x.id===_recordGPSId; });
     if(!v){ showToast('기록을 찾을 수 없어요.','err'); return; }
     v.lat = _mapLat;
@@ -2138,6 +2225,7 @@ async function doSave(){
   var ts = dtVal ? new Date(dtVal).toISOString() : new Date().toISOString();
   var entry={id:Date.now().toString(),plate:plate,activity:activity,types:selT.slice(),zone:zone,detail:detail,org:org,severity:curSev,note:note,reporter:rep,timestamp:ts,photos:entryPhotos.slice()};
   viols.unshift(entry);
+  markMine(entry.id); // 본인 기기 입력 기록 (수정 권한)
   updHdr();
   var btn2=document.getElementById('savebtn');
   btn2.textContent='저장 중...'; btn2.disabled=true;
@@ -2296,7 +2384,24 @@ function renderHist(){
     var rns=[]; v.types.forEach(function(t){ var x=VT.find(function(a){ return a.id===t; }); if(x&&x.rule&&rns.indexOf(x.rule)<0) rns.push(x.rule); }); rns.sort(function(a,b){ return a-b; });
     var rbadges=rns.length?'<div style="margin-bottom:10px"><div class="dlbl" style="margin-bottom:4px">12대 수칙</div><div class="hbadges">'+rns.map(function(n){ return '<span class="rbadge">제'+n+'수칙 <span>'+R12[n]+'</span></span>'; }).join('')+'</div></div>':'';
     var rprev=rns.length?'<span style="font-size:10px;color:#185FA5;background:#E6F1FB;border-radius:4px;padding:1px 6px;border:0.5px solid #185FA544">제'+rns.join('·')+'수칙</span>':'';
-    var isOpen=expId===v.id, isDel=delId===v.id;
+    var isOpen=expId===v.id, isDel=delId===v.id, isEdit=editId===v.id;
+    // 수정됨 표시 (헤더에 작은 아이콘)
+    var editedMark = v.editedAt
+      ? '<span title="'+fmtF(v.editedAt)+' 수정" style="font-size:11px;color:#888">✏️</span>'
+      : '';
+    // 편집 모드 진입
+    if(isEdit){
+      return '<div class="hitem">'
+        +'<div class="hrow" style="cursor:default">'
+        +'<div class="sevbar" style="background:'+s.c+'"></div>'
+        +'<div class="hmeta"><div class="htop">'
+        +'<span style="font-family:monospace;font-size:14px;font-weight:600">'+v.plate+'</span>'
+        +'<span class="badge" style="background:#E6F1FB;color:#185FA5;border:0.5px solid #185FA555">수정 중</span>'
+        +'</div></div></div>'
+        +'<div class="hdetail open" style="background:#fffceb">'
+        + renderEditForm(v)
+        +'</div></div>';
+    }
     return '<div class="hitem">'
       +'<div class="hrow" onclick="togExp(\''+v.id+'\')">'
       +'<div class="sevbar" style="background:'+s.c+'"></div>'
@@ -2304,6 +2409,7 @@ function renderHist(){
       +'<span style="font-family:monospace;font-size:14px;font-weight:600">'+v.plate+'</span>'
       +'<span class="badge" style="background:'+s.b+';color:'+s.c+';border:0.5px solid '+s.c+'55">'+s.l+'</span>'
       +rprev
+      +editedMark
       +'<span class="htime">'+fmtS(v.timestamp)+'</span>'
       +'</div><div class="hbadges">'+prev+'</div></div>'
       +'<div class="earrow">'+(isOpen?'▲':'▼')+'</div></div>'
@@ -2314,17 +2420,40 @@ function renderHist(){
       +'<div><div class="dlbl">위반자</div><div class="dval">'+(v.reporter||'-')+'</div></div>'
       +(v.org?'<div><div class="dlbl">위반조직</div><div class="dval">'+v.org+'</div></div>':'')
       +'<div><div class="dlbl">위반장소</div><div class="dval">'+v.zone+(v.detail?' · '+v.detail:'')+'</div></div>'
+      +(v.editedAt?'<div style="grid-column:1/-1"><div class="dlbl">최근 수정</div><div class="dval" style="font-size:12px;color:#888">✏️ '+fmtF(v.editedAt)+'</div></div>':'')
       +'</div>'
       +'<div style="margin-bottom:10px"><div class="dlbl" style="margin-bottom:4px">위반 유형</div><div class="hbadges">'+all+'</div></div>'
       +rbadges
       +(v.note?'<div style="margin-bottom:10px"><div class="dlbl">비고</div><div style="font-size:13px;color:#666;line-height:1.5">'+v.note+'</div></div>':'')
       +(v.photos&&v.photos.length?photoHtml(v.photos):'')
       +gpsBlock(v)
+      + editButtonBlock(v)
       +'<div class="delarea">'
       +(isDel?'<span style="font-size:12px;color:#666">삭제하시겠습니까?</span><button class="delcbtn" onclick="doDelete(\''+v.id+'\')">삭제</button><button class="delxbtn" onclick="cancelDel()">취소</button>'
              :'<button class="delbtn" onclick="confDel(\''+v.id+'\')">기록 삭제</button>')
       +'</div></div></div>';
   }).join('');
+}
+
+// 수정 버튼 영역 — 권한/시간에 따라 다르게 표시
+function editButtonBlock(v){
+  var c = canEdit(v);
+  if(c.ok){
+    return '<div style="margin:10px 0">'
+      +'<button onclick="startEdit(\''+v.id+'\')" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">'
+      +'✏️ 내용 수정 <span style="font-size:11px;font-weight:400;color:#888">(남은 시간 '+fmtRemain(c.remainMs)+')</span>'
+      +'</button>'
+      +'</div>';
+  }
+  if(c.reason==='time'){
+    return '<div style="margin:10px 0;padding:8px 12px;background:#FAEEDA;border-radius:8px;border:0.5px solid #EF9F2755">'
+      +'<div style="font-size:12px;color:#BA7517;line-height:1.5">'
+      +'⏱ 수정 가능 시간(24시간)이 지났어요.<br>'
+      +'내용 수정이 필요하시면 '+ADMIN_CONTACT+'로 문의해주세요.'
+      +'</div></div>';
+  }
+  // notmine, notfound: 다른 사람이 입력한 것 → 안내 굳이 안 띄움 (UI 깔끔하게)
+  return '';
 }
 
 function gpsBlock(v){
@@ -2485,7 +2614,345 @@ function clearHistDate(){
   renderHist();
 }
 
-function togExp(id){ expId=expId===id?null:id; delId=null; renderHist(); }
+function togExp(id){
+  // 편집 모드일 때는 펼침/접힘 토글 막기 (실수 방지)
+  if(editId) return;
+  expId=expId===id?null:id; delId=null; renderHist();
+}
+
+// ── 편집 모드 ──────────────────────────────
+var _editBuffer = null; // {id, plate, activity, types, zone, detail, org, severity, note, reporter, timestamp, photos, lat, lng}
+
+function startEdit(id){
+  var v = viols.find(function(x){ return x.id===id; });
+  if(!v){ showToast('기록을 찾을 수 없어요.','err'); return; }
+  var c = canEdit(v);
+  if(!c.ok){
+    if(c.reason==='time') showToast('수정 가능 시간(24시간)이 지났어요.','warn');
+    else showToast('이 기기에서 입력한 기록만 수정할 수 있어요.','warn');
+    return;
+  }
+  // 깊은 복사로 버퍼에 보관 (취소 시 원본 보존)
+  _editBuffer = {
+    id: v.id,
+    plate: v.plate || '',
+    activity: v.activity || '',
+    types: (v.types||[]).slice(),
+    zone: v.zone || '',
+    detail: v.detail || '',
+    org: v.org || '',
+    severity: v.severity || 'low',
+    note: v.note || '',
+    reporter: v.reporter || '',
+    timestamp: v.timestamp,
+    photos: (v.photos||[]).slice(),
+    lat: v.lat || null,
+    lng: v.lng || null
+  };
+  editId = id;
+  delId = null;
+  renderHist();
+  // 편집 영역으로 스크롤
+  setTimeout(function(){
+    var el = document.getElementById('edit-form-'+id);
+    if(el) el.scrollIntoView({behavior:'smooth', block:'center'});
+  }, 50);
+}
+
+function cancelEdit(){
+  if(editId && _editBuffer && !confirmDiscardEdit()){ return; }
+  _editBuffer = null;
+  editId = null;
+  renderHist();
+}
+
+function confirmDiscardEdit(){
+  // 변경사항이 있는지 가볍게 확인 (간단히 항상 confirm)
+  return confirm('수정한 내용이 사라집니다. 취소하시겠어요?');
+}
+
+// 편집 폼 HTML 생성 (이력 상세영역 안에 인라인으로 들어감)
+function renderEditForm(v){
+  if(!_editBuffer) return '';
+  var b = _editBuffer;
+  // 점검활동 옵션
+  var actOpts = '<option value="">선택 안함</option>'
+    + ACTIVITIES.map(function(a){ return '<option value="'+a+'"'+(b.activity===a?' selected':'')+'>'+a+'</option>'; }).join('')
+    + '<option value="기타"'+(b.activity.indexOf('기타: ')===0?' selected':'')+'>기타</option>';
+  var actEtcVal = b.activity.indexOf('기타: ')===0 ? b.activity.substring(4) : '';
+  var actEtcDisplay = b.activity.indexOf('기타: ')===0 ? 'block' : 'none';
+
+  // 장소 datalist 옵션 (모든 zone)
+  var zoneOpts = ZONES.map(function(z){ var nm = typeof z==='object'?z.name:z; return '<option value="'+nm+'"></option>'; }).join('');
+
+  // 위반유형 카테고리별 토글
+  var cats = {};
+  VT.forEach(function(t){ if(!cats[t.cat]) cats[t.cat]=[]; cats[t.cat].push(t); });
+  var typesHtml = Object.keys(cats).map(function(cat){
+    var pills = cats[cat].map(function(t){
+      var on = b.types.indexOf(t.id)>=0;
+      var bg = on ? CB[cat] : '#fff';
+      var col = on ? CC[cat] : '#666';
+      var bd = on ? CC[cat] : '#ccc';
+      return '<button type="button" onclick="toggleEditType(\''+t.id+'\')" '
+        +'style="padding:6px 10px;border-radius:7px;border:0.5px solid '+bd+';background:'+bg+';color:'+col+';font-size:12px;cursor:pointer;font-family:inherit;font-weight:'+(on?'500':'400')+'">'
+        +t.label+'</button>';
+    }).join('');
+    return '<div class="cgrp"><div class="cat-lbl"><span class="cdot" style="background:'+CC[cat]+'"></span>'+cat+'</div>'
+      +'<div class="pgrid">'+pills+'</div></div>';
+  }).join('');
+
+  // 심각도
+  var sevHtml = ['low','mid','high'].map(function(s){
+    var sd = SEV[s];
+    var on = b.severity===s;
+    return '<button type="button" onclick="setEditSev(\''+s+'\')" class="sevbtn" '
+      +'style="'+(on?'background:'+sd.b+';color:'+sd.c+';border-color:'+sd.c:'')+'">'+sd.l+'</button>';
+  }).join('');
+
+  // datetime-local 포맷
+  var dtVal = '';
+  try{
+    var d = new Date(b.timestamp);
+    dtVal = d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'T'+p2(d.getHours())+':'+p2(d.getMinutes());
+  }catch(e){}
+
+  // 사진 미리보기 (편집 버퍼)
+  var photoHtmlEdit = b.photos.length
+    ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
+      + b.photos.map(function(p, i){
+        return '<div style="position:relative">'
+          +'<img src="'+p+'" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:0.5px solid #ccc">'
+          +'<button type="button" onclick="removeEditPhoto('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:#A32D2D;color:#fff;font-size:12px;line-height:1;cursor:pointer">×</button>'
+          +'</div>';
+      }).join('')
+      + '</div>'
+    : '';
+
+  // GPS 표시
+  var gpsHtml = (b.lat && b.lng)
+    ? '<div style="font-size:11px;color:#3B6D11;font-family:monospace">📍 '+(+b.lat).toFixed(6)+', '+(+b.lng).toFixed(6)+'</div>'
+    : '<div style="font-size:11px;color:#aaa">GPS 위치 없음</div>';
+
+  return '<div id="edit-form-'+v.id+'" style="padding:4px 0">'
+    +'<div style="font-size:12px;color:#185FA5;background:#E6F1FB;border-radius:6px;padding:8px 10px;margin-bottom:12px;line-height:1.5">'
+    +'✏️ <b>수정 모드</b> · 변경 후 [수정 저장]을 눌러주세요.'
+    +'</div>'
+    // 차량번호
+    +'<div class="fblock"><label class="fl">차량번호</label>'
+    +'<input type="text" class="plate-input" id="ed-plate" value="'+escAttr(b.plate)+'" maxlength="12" style="width:100%"></div>'
+    // 점검활동
+    +'<div class="fblock"><label class="fl">점검 활동</label>'
+    +'<select id="ed-activity" onchange="onEditActChange()" style="width:100%">'+actOpts+'</select>'
+    +'<input type="text" id="ed-activity-etc" placeholder="기타 활동 내용" value="'+escAttr(actEtcVal)+'" style="width:100%;margin-top:6px;display:'+actEtcDisplay+'"></div>'
+    // 위반자 / 조직
+    +'<div class="frow">'
+    +'<div><label class="fl">위반자</label><input type="text" id="ed-reporter" value="'+escAttr(b.reporter)+'"></div>'
+    +'<div><label class="fl">위반조직</label><input type="text" id="ed-org" value="'+escAttr(b.org)+'"></div>'
+    +'</div>'
+    // 일시
+    +'<div class="fblock"><label class="fl">일시</label>'
+    +'<input type="datetime-local" id="ed-dt" value="'+dtVal+'" style="width:100%"></div>'
+    // 장소 / 세부장소
+    +'<div class="fblock"><label class="fl">위반장소</label>'
+    +'<input type="text" id="ed-zone" value="'+escAttr(b.zone)+'" list="zone-list" autocomplete="off"></div>'
+    +'<div class="fblock"><label class="fl">세부장소</label>'
+    +'<input type="text" id="ed-detail" value="'+escAttr(b.detail)+'" placeholder="예: 3번 게이트 앞"></div>'
+    // 위반유형
+    +'<div class="fblock"><label class="fl">위반 유형 ('+b.types.length+'개 선택됨)</label>'
+    + typesHtml
+    +'</div>'
+    // 심각도
+    +'<div class="fblock"><label class="fl">심각도</label>'
+    +'<div class="sevrow">'+sevHtml+'</div></div>'
+    // 비고
+    +'<div class="fblock"><label class="fl">비고</label>'
+    +'<textarea id="ed-note">'+escHtml(b.note)+'</textarea></div>'
+    // 사진
+    +'<div class="fblock"><label class="fl">사진 ('+b.photos.length+'/2장)</label>'
+    + photoHtmlEdit
+    +'<div style="margin-top:8px"><input type="file" id="ed-photo-input" accept="image/*" multiple onchange="onEditPhotoSelect(event)" style="font-size:12px"></div>'
+    +'</div>'
+    // GPS
+    +'<div class="fblock"><label class="fl">GPS 위치</label>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#f5f5f3;border-radius:7px">'
+    + gpsHtml
+    +'<div style="display:flex;gap:4px">'
+    +(b.lat && b.lng ? '<button type="button" onclick="clearEditGPS()" style="padding:4px 10px;border-radius:6px;border:0.5px solid #ccc;background:#fff;color:#666;font-size:11px;cursor:pointer">제거</button>' : '')
+    +'<button type="button" onclick="setEditGPS()" style="padding:4px 10px;border-radius:6px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:11px;cursor:pointer">'+(b.lat?'재설정':'위치 추가')+'</button>'
+    +'</div></div></div>'
+    // 액션 버튼
+    +'<div style="display:flex;gap:8px;margin-top:14px">'
+    +'<button type="button" onclick="cancelEdit()" style="flex:1;padding:11px;border-radius:8px;border:0.5px solid #ccc;background:#fff;color:#666;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit">취소</button>'
+    +'<button type="button" onclick="saveEdit()" style="flex:2;padding:11px;border-radius:8px;border:1.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit">수정 저장</button>'
+    +'</div>'
+    +'</div>';
+}
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// 편집 폼 핸들러들 (DOM이 매번 재생성되므로 onclick으로 직접 호출)
+function onEditActChange(){
+  var sel = document.getElementById('ed-activity');
+  var etc = document.getElementById('ed-activity-etc');
+  if(!sel||!etc) return;
+  etc.style.display = sel.value==='기타' ? 'block' : 'none';
+}
+function toggleEditType(tid){
+  if(!_editBuffer) return;
+  // 폼의 현재 입력값을 버퍼에 동기화 (재렌더 전에)
+  syncEditFormToBuffer();
+  var i = _editBuffer.types.indexOf(tid);
+  if(i>=0) _editBuffer.types.splice(i,1);
+  else _editBuffer.types.push(tid);
+  renderHist();
+  setTimeout(function(){
+    var el = document.getElementById('edit-form-'+_editBuffer.id);
+    if(el) el.scrollIntoView({behavior:'auto', block:'center'});
+  }, 0);
+}
+function setEditSev(s){
+  if(!_editBuffer) return;
+  syncEditFormToBuffer();
+  _editBuffer.severity = s;
+  renderHist();
+  setTimeout(function(){
+    var el = document.getElementById('edit-form-'+_editBuffer.id);
+    if(el) el.scrollIntoView({behavior:'auto', block:'center'});
+  }, 0);
+}
+function onEditPhotoSelect(e){
+  if(!_editBuffer) return;
+  syncEditFormToBuffer();
+  var files = Array.from(e.target.files);
+  e.target.value = '';
+  files.forEach(function(file){
+    if(_editBuffer.photos.length >= 2){ showToast('사진은 최대 2장까지 등록할 수 있어요.','warn'); return; }
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var canvas = document.createElement('canvas');
+      var img = new Image();
+      img.onload = function(){
+        var maxDim = 1200;
+        var w = img.width, h = img.height;
+        if(w > maxDim || h > maxDim){
+          if(w > h){ h = h * maxDim/w; w = maxDim; }
+          else { w = w * maxDim/h; h = maxDim; }
+        }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var b64 = canvas.toDataURL('image/jpeg', 0.7);
+        _editBuffer.photos.push(b64);
+        renderHist();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function removeEditPhoto(idx){
+  if(!_editBuffer) return;
+  syncEditFormToBuffer();
+  _editBuffer.photos.splice(idx,1);
+  renderHist();
+}
+function clearEditGPS(){
+  if(!_editBuffer) return;
+  syncEditFormToBuffer();
+  _editBuffer.lat = null; _editBuffer.lng = null;
+  renderHist();
+}
+function setEditGPS(){
+  if(!_editBuffer) return;
+  syncEditFormToBuffer();
+  // 기존 setRecordGPS와 동일한 모달 사용 — 단, 편집 버퍼에 저장하도록 플래그 처리
+  _editGPSPending = true;
+  _recordGPSId = _editBuffer.id;
+  document.getElementById('map-modal-title').textContent = '위반 위치 지정 ('+(_editBuffer.plate||'기록')+')';
+  document.getElementById('map-modal').style.display = 'flex';
+  _mapZoneIdx = -2;
+  setDrawMode('circle');
+  setTimeout(function(){
+    var lat = _editBuffer.lat || 34.7647;
+    var lng = _editBuffer.lng || 126.3869;
+    if(!_mapInstance){
+      _mapInstance = L.map('zone-map',{tap:false}).setView([lat,lng],18);
+      var streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:20});
+      var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:20});
+      streetLayer.addTo(_mapInstance);
+      L.control.layers({'일반':streetLayer, '위성':satelliteLayer},null,{position:'topright'}).addTo(_mapInstance);
+      _mapInstance.on('click', function(e){ onMapClick(e.latlng.lat, e.latlng.lng); });
+    } else {
+      _mapInstance.setView([lat, lng], 18);
+    }
+    if(_editBuffer.lat && _editBuffer.lng){
+      onMapClick(_editBuffer.lat, _editBuffer.lng);
+    }
+    setTimeout(function(){ _mapInstance.invalidateSize(); }, 100);
+  }, 100);
+}
+var _editGPSPending = false;
+
+// 폼 input/textarea 값을 버퍼로 동기화 (재렌더 전 호출)
+function syncEditFormToBuffer(){
+  if(!_editBuffer) return;
+  var fld = function(id){ var el=document.getElementById(id); return el?el.value:''; };
+  _editBuffer.plate = fld('ed-plate').replace(/\s/g,'').toUpperCase();
+  var actSel = fld('ed-activity'), actEtc = fld('ed-activity-etc').trim();
+  _editBuffer.activity = actSel==='기타' ? ('기타: '+actEtc) : actSel;
+  _editBuffer.reporter = fld('ed-reporter').trim();
+  _editBuffer.org = fld('ed-org').trim();
+  var dtv = fld('ed-dt');
+  if(dtv) _editBuffer.timestamp = new Date(dtv).toISOString();
+  _editBuffer.zone = fld('ed-zone').trim();
+  _editBuffer.detail = fld('ed-detail').trim();
+  _editBuffer.note = fld('ed-note').trim();
+}
+
+async function saveEdit(){
+  if(!_editBuffer || !editId){ return; }
+  syncEditFormToBuffer();
+  var b = _editBuffer;
+  // 검증
+  if(!b.plate){ showToast('차량번호를 입력해주세요.','err'); return; }
+  if(!b.types.length){ showToast('위반 유형을 하나 이상 선택해주세요.','err'); return; }
+  if(!b.zone){ showToast('위반장소를 입력해주세요.','err'); return; }
+
+  // 권한 재확인 (편집 도중 24h 경과한 경우)
+  var orig = viols.find(function(x){ return x.id===editId; });
+  var c = canEdit(orig);
+  if(!c.ok){
+    showToast('수정 가능 시간이 만료되었어요. '+ADMIN_CONTACT+'로 문의해주세요.','err');
+    _editBuffer = null; editId = null; renderHist(); return;
+  }
+
+  // 로컬 적용
+  var idx = viols.findIndex(function(x){ return x.id===editId; });
+  if(idx<0){ showToast('기록을 찾을 수 없어요.','err'); return; }
+  var updated = {
+    id: b.id,
+    plate: b.plate,
+    activity: b.activity,
+    types: b.types.slice(),
+    zone: b.zone,
+    detail: b.detail,
+    org: b.org,
+    severity: b.severity,
+    note: b.note,
+    reporter: b.reporter,
+    timestamp: b.timestamp,
+    photos: b.photos.slice(),
+    lat: b.lat,
+    lng: b.lng,
+    editedAt: new Date().toISOString()
+  };
+  viols[idx] = updated;
+  _editBuffer = null;
+  editId = null;
+  renderHist(); renderStats(); updHdr();
+  await sdUpdate(updated);
+}
 function confDel(id){
   var pw = prompt('삭제 권한 확인\n관리자 비밀번호를 입력하세요:');
   if(pw === null) return;
