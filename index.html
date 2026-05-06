@@ -55,10 +55,15 @@
   .savebtn.ok { border-color: #3B6D11; background: #EAF3DE; color: #3B6D11; }
   .ebox { padding: 10px 14px; border-radius: 7px; background: #FCEBEB; color: #A32D2D; font-size: 13px; border: 0.5px solid #f0959588; margin-bottom: 10px; }
   .sgrid { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
-  .scard { flex: 1; min-width: 80px; background: #f0efea; border-radius: 8px; padding: 12px 14px; }
-  .slbl { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .scard { flex: 1; min-width: 80px; background: #f0efea; border-radius: 8px; padding: 12px 14px; position: relative; }
+  .slbl { font-size: 11px; color: #888; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; gap: 4px; }
   .sval { font-size: 26px; font-weight: 500; line-height: 1; }
   .ssub { font-size: 11px; color: #aaa; margin-top: 4px; }
+  .delta { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+  .delta.up { background: #FCEBEB; color: #A32D2D; }
+  .delta.down { background: #EAF3DE; color: #3B6D11; }
+  .delta.flat { background: #ececea; color: #888; }
+  .delta.new { background: #E6F1FB; color: #185FA5; }
   .filt-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .filt-cnt { font-size: 12px; color: #aaa; margin-bottom: 10px; }
   .hlist { display: grid; gap: 8px; }
@@ -250,8 +255,8 @@
   .hrow { padding: 14px 16px; }
 
   /* ── STAT CARDS ── */
-  .scard { flex: 1; min-width: 80px; background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-  .slbl { font-size: 11px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.3px; }
+  .scard { flex: 1; min-width: 80px; background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: relative; }
+  .slbl { font-size: 11px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; justify-content: space-between; gap: 4px; }
   .sval { font-size: 28px; font-weight: 700; line-height: 1.1; margin-top: 2px; }
 
   /* ── PERIOD NAV ── */
@@ -465,6 +470,8 @@
     <div class="sgrid" id="sgrid"></div>
     <div class="smb" id="r12card"></div>
     <div class="smb" id="offcard"></div>
+    <div class="smb" id="orgcard"></div>
+    <div class="smb" id="zonecard"></div>
     <div class="smb" id="catcard"></div>
     <div id="typecard"></div>
     </div><!-- end stats-content -->
@@ -2544,6 +2551,67 @@ function getDateRange(period){
   return {start:start,end:end};
 }
 
+// 직전 동기간 산출 (전기간 대비 증감률 계산용)
+// 'all' 은 비교 대상이 없으므로 null 반환
+function getPrevDateRange(period){
+  var now = new Date();
+  if(period==='all') return null;
+  if(period==='week'){
+    // 최근7일 → 그 이전 7일
+    var end = new Date(now); end.setDate(now.getDate()-7); end.setHours(23,59,59,999);
+    var start = new Date(end); start.setDate(end.getDate()-6); start.setHours(0,0,0,0);
+    return {start:start, end:end};
+  }
+  if(period==='month'){
+    // 이번달 → 지난달 (1일~말일)
+    var start = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    var end = new Date(now.getFullYear(), now.getMonth(), 0); end.setHours(23,59,59,999);
+    return {start:start, end:end};
+  }
+  if(period==='quarter'){
+    // 최근3개월 → 그 이전 3개월
+    var curStart = new Date(now); curStart.setMonth(now.getMonth()-2); curStart.setDate(1); curStart.setHours(0,0,0,0);
+    var end = new Date(curStart.getTime()-1);
+    var start = new Date(curStart); start.setMonth(curStart.getMonth()-3);
+    return {start:start, end:end};
+  }
+  if(period==='year'){
+    // 올해 → 작년 동기간 (작년 1/1 ~ 작년 오늘)
+    var start = new Date(now.getFullYear()-1, 0, 1);
+    var end = new Date(now.getFullYear()-1, now.getMonth(), now.getDate()); end.setHours(23,59,59,999);
+    return {start:start, end:end};
+  }
+  if(period==='lastyear'){
+    // 지난1년 → 그 이전 1년
+    var end = new Date(now); end.setFullYear(now.getFullYear()-1); end.setHours(23,59,59,999);
+    var start = new Date(end); start.setFullYear(end.getFullYear()-1); start.setDate(start.getDate()+1); start.setHours(0,0,0,0);
+    return {start:start, end:end};
+  }
+  if(period==='custom'){
+    // 직접설정 → 같은 길이만큼 이전
+    var cur = getDateRange('custom');
+    if(!cur) return null;
+    var len = cur.end.getTime() - cur.start.getTime();
+    var end = new Date(cur.start.getTime()-1);
+    var start = new Date(end.getTime()-len);
+    return {start:start, end:end};
+  }
+  return null;
+}
+
+// 증감률 배지 HTML 생성
+// cur: 현재값, prev: 이전값, hasPrev: 이전 기간이 비교 가능한지
+function deltaBadge(cur, prev, hasPrev){
+  if(!hasPrev) return '';
+  if(prev===0 && cur===0) return '<span class="delta flat">0%</span>';
+  if(prev===0) return '<span class="delta new">신규</span>';
+  if(cur===0)  return '<span class="delta down">▼100%</span>';
+  var pct = Math.round((cur-prev)/prev*100);
+  if(pct===0) return '<span class="delta flat">0%</span>';
+  if(pct>0)   return '<span class="delta up">▲'+pct+'%</span>';
+  return '<span class="delta down">▼'+Math.abs(pct)+'%</span>';
+}
+
 // ── 통계 서브탭 전환 ──
 var _violMapInstance = null;
 var _violMarkers = [];
@@ -2764,14 +2832,28 @@ function renderStats(){
     else rangeEl.textContent = '전체 기간 ('+fv.length+'건)';
   }
 
+  // ── 직전 동기간 데이터 (증감률 계산용) ──
+  var prevRange = getPrevDateRange(curPeriod);
+  var hasPrev = !!prevRange;
+  var pv = hasPrev
+    ? viols.filter(function(v){ var d=new Date(v.timestamp); return d>=prevRange.start&&d<=prevRange.end; })
+    : [];
+
+  // 현재 기간 KPI
   var uv=(function(){ var s={}; fv.forEach(function(v){ s[v.plate]=1; }); return Object.keys(s).length; })();
   var hs=fv.filter(function(v){ return v.severity==='high'; }).length;
   var ms=fv.filter(function(v){ return v.severity==='mid'; }).length;
+
+  // 직전 기간 KPI
+  var p_uv=(function(){ var s={}; pv.forEach(function(v){ s[v.plate]=1; }); return Object.keys(s).length; })();
+  var p_hs=pv.filter(function(v){ return v.severity==='high'; }).length;
+  var p_ms=pv.filter(function(v){ return v.severity==='mid'; }).length;
+
   document.getElementById('sgrid').innerHTML=
-    '<div class="scard"><div class="slbl">위반 건수</div><div class="sval" style="color:#E24B4A">'+fv.length+'</div><div class="ssub">기간 내 기록</div></div>'
-   +'<div class="scard"><div class="slbl">위반 차량</div><div class="sval" style="color:#185FA5">'+uv+'</div><div class="ssub">고유 차량 수</div></div>'
-   +'<div class="scard"><div class="slbl">경고</div><div class="sval" style="color:#D85A30">'+ms+'</div><div class="ssub">경고 등급</div></div>'
-   +'<div class="scard"><div class="slbl">심각</div><div class="sval" style="color:#A32D2D">'+hs+'</div><div class="ssub">즉각 조치 필요</div></div>';
+    '<div class="scard"><div class="slbl"><span>위반 건수</span>'+deltaBadge(fv.length, pv.length, hasPrev)+'</div><div class="sval" style="color:#E24B4A">'+fv.length+'</div><div class="ssub">기간 내 기록</div></div>'
+   +'<div class="scard"><div class="slbl"><span>위반 차량</span>'+deltaBadge(uv, p_uv, hasPrev)+'</div><div class="sval" style="color:#185FA5">'+uv+'</div><div class="ssub">고유 차량 수</div></div>'
+   +'<div class="scard"><div class="slbl"><span>경고</span>'+deltaBadge(ms, p_ms, hasPrev)+'</div><div class="sval" style="color:#D85A30">'+ms+'</div><div class="ssub">경고 등급</div></div>'
+   +'<div class="scard"><div class="slbl"><span>심각</span>'+deltaBadge(hs, p_hs, hasPrev)+'</div><div class="sval" style="color:#A32D2D">'+hs+'</div><div class="ssub">즉각 조치 필요</div></div>';
 
   // 12대 수칙
   var rc={};
@@ -2810,6 +2892,50 @@ function renderStats(){
           +'<div class="ometa"><div class="oplate">'+p+(rep?'<span class="badge" style="background:#FCEBEB;color:#A32D2D;border:0.5px solid #f0959588">상습</span>':'')+'</div>'
           +'<div class="btrack"><div class="bfill" style="width:'+pct+'%;background:'+(rep?'#E24B4A':'#888')+'"></div></div></div>'
           +'<div class="ocnt" style="color:'+(rep?'#A32D2D':'inherit')+'">'+cnt+'<span>건</span></div></div>';
+      }).join('')
+    )+'</div>';
+
+  // ── 조직별 TOP 5 ──
+  var oc={};
+  fv.forEach(function(v){
+    var k = (v.org && v.org.trim()) ? v.org.trim() : '(미입력)';
+    oc[k] = (oc[k]||0)+1;
+  });
+  var orgTop = Object.entries(oc).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
+  var orgTotal = Object.values(oc).reduce(function(a,b){ return a+b; },0);
+  var orgMax = orgTop[0]?orgTop[0][1]:1;
+  document.getElementById('orgcard').innerHTML='<div class="card"><div class="card-header"><div class="card-header-title">조직별 위반 순위</div><div class="card-header-sub">소속 조직 TOP 5'+(orgTotal?' · 총 '+orgTotal+'건':'')+'</div></div>'
+    +(!orgTop.length?'<div class="empty" style="padding:1.5rem">데이터 없음</div>'
+      :orgTop.map(function(e,i){
+        var name=e[0],cnt=e[1],pct=Math.round(cnt/orgMax*100);
+        var pctTotal = Math.round(cnt/orgTotal*100);
+        var nameEsc = String(name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return '<div class="orow"><div class="rankb" style="'+(i===0?'background:#FAEEDA;color:#BA7517':'')+'">'+(i+1)+'</div>'
+          +'<div class="ometa"><div class="oplate" style="font-family:inherit;font-weight:500">'+nameEsc+'</div>'
+          +'<div class="btrack"><div class="bfill" style="width:'+pct+'%;background:'+(i===0?'#D85A30':'#888')+'"></div></div></div>'
+          +'<div class="ocnt">'+cnt+'<span>건 ('+pctTotal+'%)</span></div></div>';
+      }).join('')
+    )+'</div>';
+
+  // ── 장소별 TOP 5 ──
+  var zc={};
+  fv.forEach(function(v){
+    var k = (v.zone && v.zone.trim()) ? v.zone.trim() : '(미입력)';
+    zc[k] = (zc[k]||0)+1;
+  });
+  var zoneTop = Object.entries(zc).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
+  var zoneTotal = Object.values(zc).reduce(function(a,b){ return a+b; },0);
+  var zoneMax = zoneTop[0]?zoneTop[0][1]:1;
+  document.getElementById('zonecard').innerHTML='<div class="card"><div class="card-header"><div class="card-header-title">장소별 위반 순위</div><div class="card-header-sub">위반 발생 장소 TOP 5'+(zoneTotal?' · 총 '+zoneTotal+'건':'')+'</div></div>'
+    +(!zoneTop.length?'<div class="empty" style="padding:1.5rem">데이터 없음</div>'
+      :zoneTop.map(function(e,i){
+        var name=e[0],cnt=e[1],pct=Math.round(cnt/zoneMax*100);
+        var pctTotal = Math.round(cnt/zoneTotal*100);
+        var nameEsc = String(name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return '<div class="orow"><div class="rankb" style="'+(i===0?'background:#E6F1FB;color:#185FA5':'')+'">'+(i+1)+'</div>'
+          +'<div class="ometa"><div class="oplate" style="font-family:inherit;font-weight:500">'+nameEsc+'</div>'
+          +'<div class="btrack"><div class="bfill" style="width:'+pct+'%;background:'+(i===0?'#185FA5':'#888')+'"></div></div></div>'
+          +'<div class="ocnt">'+cnt+'<span>건 ('+pctTotal+'%)</span></div></div>';
       }).join('')
     )+'</div>';
 
