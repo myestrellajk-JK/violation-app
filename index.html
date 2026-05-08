@@ -534,6 +534,21 @@
           </div>
         </div>
       </div>
+      <div class="card smb">
+        <div class="card-header">
+          <div class="card-header-title">🏢 조직명 일괄 정리</div>
+          <div class="card-header-sub">표기가 다른 같은 조직명을 통합합니다</div>
+        </div>
+        <div style="padding:14px 16px">
+          <div id="org-clean-empty" style="text-align:center;color:#aaa;font-size:13px;padding:1.5rem 0">데이터를 불러오는 중...</div>
+          <div id="org-clean-content" style="display:none">
+            <!-- 자동 그룹 -->
+            <div id="org-auto-section" style="margin-bottom:18px"></div>
+            <!-- 그 외 조직 -->
+            <div id="org-manual-section"></div>
+          </div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-header"><div class="card-header-title">⚠️ 위반유형 · 12대수칙</div></div>
         <div style="padding:14px 16px;font-size:13px;color:#888;line-height:1.7">위반유형 및 12대 수칙 매핑은 HTML 파일 내 <code>VT</code> 배열과 <code>R12</code> 객체를 직접 수정하세요.</div>
@@ -1555,6 +1570,7 @@ function checkAdminPW(){
     document.getElementById('admin-panel').style.display='block';
     renderAdminActivities();
     renderAdminZones();
+    renderOrgCleanup();
   } else {
     showToast('비밀번호가 올바르지 않습니다.','err');
     document.getElementById('admin-pw-input').value='';
@@ -2478,6 +2494,281 @@ function gpsBlock(v){
     +'<button data-id="'+safeId+'" onclick="setRecordGPS(this.dataset.id)" style="width:100%;padding:10px;border-radius:10px;border:0.5px dashed #185FA5;background:#fff;color:#185FA5;font-size:12px;cursor:pointer;font-family:inherit">📍 GPS 위치 추가하기</button>'
     +'</div>';
 }
+
+// ════════════════════════════════════════════════════════════
+// 조직명 일괄 정리
+// ════════════════════════════════════════════════════════════
+
+// 정규화 키 — 자동 그룹 매칭에 사용 (대소문자/공백/특수문자 차이만 무시)
+function orgNormKey(name){
+  return String(name||'').toLowerCase().replace(/[\s\-_·.]/g, '');
+}
+
+// 빈도 분석: { 원본명: 건수 } 반환
+function getOrgFrequency(){
+  var freq = {};
+  viols.forEach(function(v){
+    var o = (v.org||'').trim();
+    if(!o) return; // 빈값은 무시
+    freq[o] = (freq[o]||0) + 1;
+  });
+  return freq;
+}
+
+// 자동 그룹화 (정규화 키 기준): [{ key, items:[{name,count}], total }]
+function autoGroupOrgs(freq){
+  var groups = {};
+  Object.keys(freq).forEach(function(name){
+    var k = orgNormKey(name);
+    if(!groups[k]) groups[k] = { key:k, items:[], total:0 };
+    groups[k].items.push({ name:name, count:freq[name] });
+    groups[k].total += freq[name];
+  });
+  // 그룹 안 정렬: 건수 내림차순
+  Object.values(groups).forEach(function(g){
+    g.items.sort(function(a,b){ return b.count - a.count; });
+  });
+  // 자동 그룹은 2개 이상 표기가 있는 경우만 의미 있음
+  var autoGroups = Object.values(groups).filter(function(g){ return g.items.length >= 2; });
+  // 단일 표기는 별도 분류 (수동 통합 후보)
+  var singletons = [];
+  Object.values(groups).forEach(function(g){
+    if(g.items.length < 2) singletons.push(g.items[0]);
+  });
+  // 정렬: 자동 그룹은 총 건수 많은 순, 싱글톤은 건수 많은 순
+  autoGroups.sort(function(a,b){ return b.total - a.total; });
+  singletons.sort(function(a,b){ return b.count - a.count; });
+  return { autoGroups:autoGroups, singletons:singletons };
+}
+
+// HTML 이스케이프
+function escOrg(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// 메인 렌더 함수
+function renderOrgCleanup(){
+  var content = document.getElementById('org-clean-content');
+  var empty = document.getElementById('org-clean-empty');
+  var freq = getOrgFrequency();
+  var totalOrgs = Object.keys(freq).length;
+
+  if(totalOrgs === 0){
+    empty.textContent = '입력된 조직 데이터가 없어요.';
+    empty.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
+
+  empty.style.display = 'none';
+  content.style.display = 'block';
+
+  var grouped = autoGroupOrgs(freq);
+  renderAutoGroups(grouped.autoGroups);
+  renderManualSection(grouped.singletons, grouped.autoGroups);
+}
+
+// 자동 그룹 카드들 렌더
+function renderAutoGroups(groups){
+  var sec = document.getElementById('org-auto-section');
+  if(!groups.length){
+    sec.innerHTML = '<div style="font-size:12px;color:#aaa;padding:8px 0;border-bottom:0.5px solid #e5e5ea;margin-bottom:8px">🟢 자동 매칭된 동일 표기 그룹이 없어요. 아래 [그 외 조직]에서 직접 묶어주세요.</div>';
+    return;
+  }
+  var html = '<div style="font-size:12px;color:#3B6D11;font-weight:600;padding:6px 8px;background:#EAF3DE;border-radius:6px;margin-bottom:10px">🟢 자동 그룹 — 대소문자/공백 차이만 있는 표기들 ('+groups.length+'개)</div>';
+  html += groups.map(function(g, gi){
+    var gid = 'auto-'+gi;
+    var primary = g.items[0].name; // 가장 많이 쓰인 표기를 기본 정식 명칭으로
+    var optionsHtml = g.items.map(function(it){
+      return '<option value="'+escOrg(it.name)+'"'+(it.name===primary?' selected':'')+'>'+escOrg(it.name)+' ('+it.count+'건)</option>';
+    }).join('');
+    var listHtml = g.items.map(function(it){
+      return '<div style="font-size:13px;padding:3px 0;color:#666"><span style="font-family:monospace">'+escOrg(it.name)+'</span> <span style="color:#aaa;font-size:11px">('+it.count+'건)</span></div>';
+    }).join('');
+    return '<div style="border:0.5px solid #d4e8c4;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fafdf6">'
+      +'<div style="font-size:11px;color:#888;margin-bottom:4px">정식 명칭으로 사용할 표기</div>'
+      +'<select id="'+gid+'-primary" style="width:100%;margin-bottom:8px">'+optionsHtml+'</select>'
+      +'<div style="font-size:11px;color:#888;margin-bottom:4px">통합 대상 ('+g.items.length+'개 표기, 총 '+g.total+'건)</div>'
+      +'<div style="background:#fff;border-radius:6px;padding:6px 10px;margin-bottom:10px">'+listHtml+'</div>'
+      +'<button onclick="mergeAutoGroup('+gi+')" style="width:100%;padding:8px;border-radius:7px;border:1.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">✓ 통합 실행</button>'
+      +'</div>';
+  }).join('');
+  sec.innerHTML = html;
+  // 그룹 데이터를 전역에 보관 (실행 시 참조용)
+  window._orgAutoGroups = groups;
+}
+
+// 수동 통합 섹션 (그 외 조직 + 자동 그룹의 정식명도 포함)
+function renderManualSection(singletons, autoGroups){
+  var sec = document.getElementById('org-manual-section');
+
+  // 자동 그룹의 "현재 정식명 후보(가장 많이 쓰인 표기)"도 수동 매칭 후보에 포함
+  // 사용자가 "이 자동 그룹과 저 한글 표기는 같다"고 묶을 수 있게
+  var allCandidates = singletons.slice();
+  autoGroups.forEach(function(g){
+    // 자동 그룹은 통합 전이므로 그룹 대표명만 표시 (그룹 자체를 묶을 수 있게)
+    allCandidates.push({
+      name: g.items[0].name,
+      count: g.total,
+      isGroup: true,
+      groupItems: g.items.map(function(i){ return i.name; })
+    });
+  });
+
+  // 정렬: 빈도 내림차순
+  allCandidates.sort(function(a,b){ return b.count - a.count; });
+
+  var html = '<div style="font-size:12px;color:#185FA5;font-weight:600;padding:6px 8px;background:#E6F1FB;border-radius:6px;margin-bottom:10px">🔵 그 외 조직 — 같은 회사로 보이면 체크 후 통합하세요</div>';
+  html += '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'
+    +'<input type="text" id="org-search" placeholder="🔍 조직명 검색" oninput="filterOrgList()" style="flex:1;min-width:140px;font-size:13px">'
+    +'<select id="org-sort" onchange="sortOrgList()" style="font-size:12px"><option value="count">빈도순</option><option value="name">이름순</option></select>'
+    +'</div>';
+
+  html += '<div id="org-list-container" style="max-height:320px;overflow-y:auto;border:0.5px solid #e5e5ea;border-radius:7px;padding:6px;background:#fff;margin-bottom:10px">';
+  html += allCandidates.map(function(it, idx){
+    var displayName = escOrg(it.name);
+    var groupTag = it.isGroup ? ' <span style="font-size:10px;background:#EAF3DE;color:#3B6D11;padding:1px 5px;border-radius:3px">자동그룹</span>' : '';
+    var groupTip = it.isGroup ? ' title="포함: '+escOrg(it.groupItems.join(', '))+'"' : '';
+    return '<label class="org-row" data-name="'+escOrg(it.name)+'" data-count="'+it.count+'" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;cursor:pointer;border-bottom:0.5px solid #f0f0ed">'
+      +'<input type="checkbox" class="org-chk" value="'+idx+'" data-name="'+escOrg(it.name)+'" data-isgroup="'+(it.isGroup?'1':'0')+'" style="margin:0">'
+      +'<span style="flex:1;font-size:13px"'+groupTip+'>'+displayName+groupTag+'</span>'
+      +'<span style="font-size:11px;color:#aaa">'+it.count+'건</span>'
+      +'</label>';
+  }).join('');
+  html += '</div>';
+
+  html += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#f8f8f6;border-radius:7px;padding:10px">'
+    +'<span style="font-size:12px;color:#666;flex-shrink:0">선택한 항목 →</span>'
+    +'<input type="text" id="manual-target" placeholder="정식 명칭 (예: CMA CGM)" style="flex:1;min-width:140px;font-size:13px">'
+    +'<button onclick="mergeManual()" style="padding:7px 14px;border-radius:7px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">통합 실행</button>'
+    +'</div>'
+    +'<div id="manual-selected-info" style="font-size:11px;color:#888;margin-top:6px"></div>';
+
+  sec.innerHTML = html;
+  // 체크박스 변경 시 선택 정보 갱신
+  document.querySelectorAll('.org-chk').forEach(function(cb){
+    cb.addEventListener('change', updateManualInfo);
+  });
+  window._orgCandidates = allCandidates;
+  updateManualInfo();
+}
+
+// 검색 필터
+function filterOrgList(){
+  var q = (document.getElementById('org-search').value||'').toLowerCase().trim();
+  document.querySelectorAll('.org-row').forEach(function(row){
+    var name = (row.dataset.name||'').toLowerCase();
+    row.style.display = (!q || name.indexOf(q) >= 0) ? '' : 'none';
+  });
+}
+
+// 정렬
+function sortOrgList(){
+  var sortBy = document.getElementById('org-sort').value;
+  var container = document.getElementById('org-list-container');
+  var rows = Array.from(container.querySelectorAll('.org-row'));
+  rows.sort(function(a,b){
+    if(sortBy==='count'){
+      return parseInt(b.dataset.count||0) - parseInt(a.dataset.count||0);
+    }
+    return (a.dataset.name||'').localeCompare(b.dataset.name||'');
+  });
+  rows.forEach(function(r){ container.appendChild(r); });
+}
+
+// 선택 항목 정보 표시
+function updateManualInfo(){
+  var info = document.getElementById('manual-selected-info');
+  if(!info) return;
+  var checked = document.querySelectorAll('.org-chk:checked');
+  if(!checked.length){ info.textContent = ''; return; }
+  var names = Array.from(checked).map(function(cb){ return cb.dataset.name; });
+  info.textContent = '선택됨 ('+checked.length+'개): ' + names.join(', ');
+}
+
+// ── 자동 그룹 통합 실행 ──
+async function mergeAutoGroup(gi){
+  var groups = window._orgAutoGroups || [];
+  var g = groups[gi];
+  if(!g){ showToast('그룹 정보가 없어요.','err'); return; }
+  var primary = document.getElementById('auto-'+gi+'-primary').value;
+  if(!primary){ showToast('정식 명칭을 선택해주세요.','err'); return; }
+  // 정식 명칭 외의 표기들이 통합 대상
+  var targets = g.items.filter(function(it){ return it.name !== primary; }).map(function(it){ return it.name; });
+  if(!targets.length){ showToast('통합할 다른 표기가 없어요.','warn'); return; }
+
+  var msg = '다음 표기들을 "'+primary+'"(으)로 통합할까요?\n\n' + targets.map(function(t){
+    var cnt = g.items.find(function(it){ return it.name===t; }).count;
+    return '  • '+t+' ('+cnt+'건)';
+  }).join('\n') + '\n\n⚠ 이 작업은 되돌리기 어렵습니다.';
+  if(!confirm(msg)) return;
+
+  await executeMerge(targets, primary);
+}
+
+// ── 수동 통합 실행 ──
+async function mergeManual(){
+  var checked = Array.from(document.querySelectorAll('.org-chk:checked'));
+  if(!checked.length){ showToast('통합할 항목을 1개 이상 선택해주세요.','warn'); return; }
+  var target = (document.getElementById('manual-target').value||'').trim();
+  if(!target){ showToast('정식 명칭을 입력해주세요.','err'); return; }
+
+  // 선택 항목들에서 자동 그룹은 그룹 멤버 전체로 확장
+  var allOldNames = [];
+  var candidates = window._orgCandidates || [];
+  checked.forEach(function(cb){
+    var idx = parseInt(cb.value);
+    var c = candidates[idx];
+    if(!c) return;
+    if(c.isGroup && c.groupItems){
+      c.groupItems.forEach(function(n){ if(n!==target) allOldNames.push(n); });
+    } else {
+      if(c.name !== target) allOldNames.push(c.name);
+    }
+  });
+  // 중복 제거
+  allOldNames = Array.from(new Set(allOldNames));
+  if(!allOldNames.length){ showToast('정식 명칭과 동일한 항목만 선택됐어요.','warn'); return; }
+
+  var msg = '다음 표기들을 "'+target+'"(으)로 통합할까요?\n\n' + allOldNames.map(function(n){ return '  • '+n; }).join('\n')
+    + '\n\n⚠ 이 작업은 되돌리기 어렵습니다.';
+  if(!confirm(msg)) return;
+
+  await executeMerge(allOldNames, target);
+}
+
+// ── 실제 통합 실행 (rename 액션 + 로컬 갱신) ──
+async function executeMerge(oldNames, newName){
+  showToast('통합 중...','warn');
+  var totalUpdated = 0;
+  // 백엔드에 각 oldName에 대해 rename 요청
+  for(var i=0; i<oldNames.length; i++){
+    var oldName = oldNames[i];
+    try{
+      var res = await jsonpCall(buildParams({
+        action:'rename',
+        field:'org',
+        oldVal:oldName,
+        newVal:newName
+      }));
+      if(res && res.ok){
+        totalUpdated += (res.updated || 0);
+        // 로컬 viols도 갱신
+        viols.forEach(function(v){
+          if(v.org === oldName) v.org = newName;
+        });
+      } else {
+        showToast('"'+oldName+'" 통합 실패','err');
+      }
+    }catch(e){
+      showToast('"'+oldName+'" 통합 실패: '+e.message,'err');
+    }
+  }
+  showToast(totalUpdated+'건이 "'+newName+'"(으)로 통합됐어요.','ok');
+  // 화면 갱신
+  renderOrgCleanup();
+  renderHist(); renderStats(); updHdr();
+}
+
+// ════════════════════════════════════════════════════════════
 
 // 위반 기록에 GPS 추가/수정 - 지도 picker 띄움
 var _recordGPSId = null;
