@@ -470,6 +470,8 @@
     <div class="sgrid" id="sgrid"></div>
     <div class="smb" id="r12card"></div>
     <div class="smb" id="offcard"></div>
+    <div class="smb" id="orgmajorcard"></div>
+    <div class="smb" id="orgdeptcard"></div>
     <div class="smb" id="orgcard"></div>
     <div class="smb" id="zonecard"></div>
     <div class="smb" id="catcard"></div>
@@ -531,6 +533,29 @@
           <div style="display:flex;gap:6px">
             <input type="text" id="new-zone" placeholder="새 장소 입력" style="flex:1" onkeydown="if(event.key==='Enter') addZone()">
             <button onclick="addZone()" style="padding:8px 14px;border-radius:7px;border:1.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">추가</button>
+          </div>
+        </div>
+      </div>
+      <div class="card smb">
+        <div class="card-header"><div class="card-header-title">🏛 관리부서 목록</div><div class="card-header-sub">조직 관리 책임 부서 (조직 카테고리에서 사용)</div></div>
+        <div style="padding:14px 16px">
+          <div id="dept-list-admin" style="margin-bottom:12px"></div>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="new-dept" placeholder="예: 안전기획부, 도장지원과" style="flex:1" onkeydown="if(event.key==='Enter') addDept()">
+            <button onclick="addDept()" style="padding:8px 14px;border-radius:7px;border:1.5px solid #3B6D11;background:#EAF3DE;color:#3B6D11;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">추가</button>
+          </div>
+        </div>
+      </div>
+      <div class="card smb">
+        <div class="card-header">
+          <div class="card-header-title">🏷 조직 카테고리 관리</div>
+          <div class="card-header-sub">위반 데이터의 조직별 대분류·관리부서를 지정합니다</div>
+        </div>
+        <div style="padding:14px 16px">
+          <div id="org-cat-empty" style="text-align:center;color:#aaa;font-size:13px;padding:1.5rem 0">데이터 로딩 중...</div>
+          <div id="org-cat-content" style="display:none">
+            <div id="org-cat-unmapped"></div>
+            <div id="org-cat-mapped"></div>
           </div>
         </div>
       </div>
@@ -703,6 +728,22 @@ var VT = [
 ];
 var R12 = {1:'난폭운전 금지',2:'무자격자 운전 금지',3:'휴대폰/이어폰 금지',4:'운전중 흡연 금지',5:'과속 금지',6:'주차 규정 준수',7:'적재함 탑승 금지',8:'적재물 고정',9:'중앙선 침범·추월 금지',10:'횡단보도 보행자 보호',11:'고장차량 안전 관리',12:'전조등 점등 의무'};
 var ACTIVITIES = ['정기 교통안전 점검','합동 안전점검','수시 점검','특별 점검','신고 접수','순찰 중 적발','기타']; // config 시트에서 불러온 후 교체됨
+
+// 조직 카테고리 — 대분류는 고정 5개 (수정 시 데이터 호환성 깨짐 주의)
+var ORG_MAJOR_CATS = ['선주선급','사내협력도급','직영','사외차량','기타'];
+// 대분류별 표시색 (KPI 카드 톤과 일관)
+var ORG_MAJOR_COLORS = {
+  '선주선급':       {bg:'#E6F1FB', fg:'#185FA5'},
+  '사내협력도급':   {bg:'#EAF3DE', fg:'#3B6D11'},
+  '직영':           {bg:'#FAEEDA', fg:'#BA7517'},
+  '사외차량':       {bg:'#FAECE7', fg:'#D85A30'},
+  '기타':           {bg:'#F1EFE8', fg:'#888888'},
+  '(미분류)':       {bg:'#FCEBEB', fg:'#A32D2D'}
+};
+// 관리부서 목록 (config 시트에서 불러옴, 기본 빈 배열)
+var DEPTS = [];
+// 조직 메타 매핑: { '조직명': {major:'대분류', dept:'관리부서'} }
+var ORG_META = {};
 
 // ZONES: {name, lat, lng, radius(m)} — lat/lng null이면 GPS 미등록
 var ZONES_DEFAULT = [
@@ -1460,6 +1501,14 @@ function applyConfig(cfg){
   if(cfg.admin_pw){
     ADMIN_PW = cfg.admin_pw;
   }
+  // 관리부서 목록
+  if(Array.isArray(cfg.depts)){
+    DEPTS = cfg.depts.slice();
+  }
+  // 조직 카테고리 매핑
+  if(cfg.orgMeta && typeof cfg.orgMeta === 'object'){
+    ORG_META = cfg.orgMeta;
+  }
   buildZone();
   buildActivityList();
 }
@@ -1570,6 +1619,8 @@ function checkAdminPW(){
     document.getElementById('admin-panel').style.display='block';
     renderAdminActivities();
     renderAdminZones();
+    renderAdminDepts();
+    renderOrgCategories();
     renderOrgCleanup();
   } else {
     showToast('비밀번호가 올바르지 않습니다.','err');
@@ -2496,6 +2547,186 @@ function gpsBlock(v){
 }
 
 // ════════════════════════════════════════════════════════════
+// 관리부서 목록 관리 (활동/장소와 동일 패턴, saveConfig 사용)
+// ════════════════════════════════════════════════════════════
+
+function renderAdminDepts(){
+  var list = document.getElementById('dept-list-admin');
+  if(!list) return;
+  if(!DEPTS.length){
+    list.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px 0">등록된 관리부서가 없어요. 아래에서 추가하세요.</div>';
+    return;
+  }
+  list.innerHTML = DEPTS.map(function(d, i){
+    var nm = String(d).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:0.5px solid #f0f0ed;font-size:13px">'
+      +'<span style="flex:1">'+nm+'</span>'
+      +'<button onclick="deleteDept('+i+')" title="삭제" style="padding:3px 9px;border-radius:5px;border:0.5px solid #ddd;background:#fff;color:#A32D2D;font-size:11px;cursor:pointer;font-family:inherit">삭제</button>'
+      +'</div>';
+  }).join('');
+}
+
+function addDept(){
+  var inp = document.getElementById('new-dept');
+  var v = (inp.value||'').trim();
+  if(!v){ showToast('부서명을 입력해주세요.','warn'); return; }
+  if(DEPTS.indexOf(v) >= 0){ showToast('이미 등록된 부서예요.','warn'); return; }
+  DEPTS.push(v);
+  inp.value = '';
+  renderAdminDepts();
+  saveDepts();
+  // 카테고리 카드 다시 그리기 (드롭다운에 새 부서 반영)
+  renderOrgCategories();
+}
+
+function deleteDept(idx){
+  if(idx<0 || idx>=DEPTS.length) return;
+  var name = DEPTS[idx];
+  // 이 부서가 조직 매핑에 사용 중인지 확인
+  var usingOrgs = Object.keys(ORG_META).filter(function(o){ return ORG_META[o].dept===name; });
+  if(usingOrgs.length){
+    if(!confirm('"'+name+'"는 '+usingOrgs.length+'개 조직의 관리부서로 지정되어 있어요.\n삭제하면 해당 조직들은 관리부서 미지정 상태가 됩니다.\n계속할까요?')) return;
+    // 매핑된 조직들의 dept를 빈 값으로 변경 (서버에 반영)
+    usingOrgs.forEach(function(o){
+      ORG_META[o].dept = '';
+      jsonpCall(buildParams({action:'setOrgMeta', orgName:o, major:ORG_META[o].major||'', dept:''}));
+    });
+  }
+  DEPTS.splice(idx, 1);
+  renderAdminDepts();
+  saveDepts();
+  renderOrgCategories();
+  renderStats();
+}
+
+async function saveDepts(){
+  try{
+    await jsonpCall(buildParams({
+      action:'saveConfig',
+      key:'dept',
+      values: DEPTS.join('||')
+    }));
+  }catch(e){ showToast('관리부서 저장 실패: '+e.message,'err'); }
+}
+
+// ════════════════════════════════════════════════════════════
+// 조직 카테고리 관리 (대분류 + 관리부서 매핑)
+// ════════════════════════════════════════════════════════════
+
+function escCat(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function renderOrgCategories(){
+  var empty = document.getElementById('org-cat-empty');
+  var content = document.getElementById('org-cat-content');
+  if(!empty || !content) return;
+
+  // 현재 위반 데이터에 등장한 모든 조직 + 빈도 집계
+  var freq = {};
+  viols.forEach(function(v){
+    var o = (v.org && v.org.trim()) ? v.org.trim() : '';
+    if(o) freq[o] = (freq[o]||0)+1;
+  });
+  var orgList = Object.keys(freq);
+  if(!orgList.length){
+    empty.textContent = '입력된 조직 데이터가 없어요.';
+    empty.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  content.style.display = 'block';
+
+  // 미분류 / 분류완료 분리
+  var unmapped = orgList.filter(function(o){ return !ORG_META[o] || !ORG_META[o].major; });
+  var mapped   = orgList.filter(function(o){ return ORG_META[o] && ORG_META[o].major; });
+  // 정렬: 빈도순
+  unmapped.sort(function(a,b){ return freq[b]-freq[a]; });
+  mapped.sort(function(a,b){ return freq[b]-freq[a]; });
+
+  // ── 미분류 섹션 ──
+  var unmappedHtml = '';
+  if(unmapped.length){
+    unmappedHtml = '<div style="margin-bottom:14px">'
+      +'<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:#FCEBEB;border-radius:6px;margin-bottom:10px">'
+      +'<span style="font-size:13px;color:#A32D2D;font-weight:600">⚠ 미분류 조직 ('+unmapped.length+')</span>'
+      +'<span style="font-size:11px;color:#A32D2D;flex:1">대분류를 지정해주세요</span>'
+      +'</div>'
+      + unmapped.map(function(o){ return renderOrgCatRow(o, freq[o], true); }).join('')
+      +'</div>';
+  }
+
+  // ── 분류완료 섹션 ──
+  var mappedHtml = '';
+  if(mapped.length){
+    mappedHtml = '<div>'
+      +'<div style="font-size:12px;color:#3B6D11;font-weight:600;padding:8px 10px;background:#EAF3DE;border-radius:6px;margin-bottom:10px">✓ 분류 완료 ('+mapped.length+')</div>'
+      + mapped.map(function(o){ return renderOrgCatRow(o, freq[o], false); }).join('')
+      +'</div>';
+  }
+
+  document.getElementById('org-cat-unmapped').innerHTML = unmappedHtml;
+  document.getElementById('org-cat-mapped').innerHTML = mappedHtml;
+}
+
+function renderOrgCatRow(orgName, count, isUnmapped){
+  var meta = ORG_META[orgName] || { major:'', dept:'' };
+  var nameEsc = escCat(orgName);
+  var rowId = 'orgcat-' + orgName.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+  // 대분류 옵션
+  var majorOpts = '<option value="">— 대분류 선택 —</option>'
+    + ORG_MAJOR_CATS.map(function(c){
+        return '<option value="'+escCat(c)+'"'+(meta.major===c?' selected':'')+'>'+escCat(c)+'</option>';
+      }).join('');
+  // 관리부서 옵션
+  var deptOpts = '<option value="">— 부서 선택 (선택사항) —</option>'
+    + DEPTS.map(function(d){
+        return '<option value="'+escCat(d)+'"'+(meta.dept===d?' selected':'')+'>'+escCat(d)+'</option>';
+      }).join('');
+  var bg = isUnmapped ? '#fff8f7' : '#fafafa';
+  var bdc = isUnmapped ? '#f0959550' : '#e5e5ea';
+  return '<div id="'+rowId+'" style="border:0.5px solid '+bdc+';border-radius:7px;padding:10px 12px;margin-bottom:8px;background:'+bg+'">'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+    +'<span style="font-size:13px;font-weight:500;flex:1">'+nameEsc+'</span>'
+    +'<span style="font-size:11px;color:#888">'+count+'건</span>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center">'
+    +'<select data-org="'+nameEsc+'" data-field="major" class="org-cat-sel" style="font-size:12px">'+majorOpts+'</select>'
+    +'<select data-org="'+nameEsc+'" data-field="dept" class="org-cat-sel" style="font-size:12px">'+deptOpts+'</select>'
+    +'<button onclick="saveOrgCat(this)" data-org="'+nameEsc+'" style="padding:6px 12px;border-radius:6px;border:1.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap">저장</button>'
+    +'</div></div>';
+}
+
+async function saveOrgCat(btn){
+  var orgName = btn.dataset.org;
+  var card = btn.closest('div').parentNode;
+  var sels = card.querySelectorAll('.org-cat-sel');
+  var major = '', dept = '';
+  sels.forEach(function(s){
+    if(s.dataset.field==='major') major = s.value;
+    if(s.dataset.field==='dept') dept = s.value;
+  });
+  if(!major){ showToast('대분류를 선택해주세요.','warn'); return; }
+  // 로컬 갱신
+  ORG_META[orgName] = { major:major, dept:dept };
+  // 서버 저장
+  try{
+    var res = await jsonpCall(buildParams({
+      action:'setOrgMeta',
+      orgName:orgName,
+      major:major,
+      dept:dept
+    }));
+    if(res && res.ok){
+      showToast('"'+orgName+'" 분류 저장됨','ok');
+      renderOrgCategories();
+      renderStats(); // 대분류/부서 통계 즉시 반영
+    } else {
+      showToast('저장 실패','err');
+    }
+  }catch(e){ showToast('저장 실패: '+e.message,'err'); }
+}
+
+// ════════════════════════════════════════════════════════════
 // 조직명 일괄 정리
 // ════════════════════════════════════════════════════════════
 
@@ -2755,6 +2986,13 @@ async function executeMerge(oldNames, newName){
         viols.forEach(function(v){
           if(v.org === oldName) v.org = newName;
         });
+        // 로컬 ORG_META도 정리: oldName의 매핑을 newName으로 이전 (newName 매핑이 없을 때만)
+        if(ORG_META[oldName]){
+          if(!ORG_META[newName]){
+            ORG_META[newName] = ORG_META[oldName];
+          }
+          delete ORG_META[oldName];
+        }
       } else {
         showToast('"'+oldName+'" 통합 실패','err');
       }
@@ -2765,6 +3003,7 @@ async function executeMerge(oldNames, newName){
   showToast(totalUpdated+'건이 "'+newName+'"(으)로 통합됐어요.','ok');
   // 화면 갱신
   renderOrgCleanup();
+  renderOrgCategories();
   renderHist(); renderStats(); updHdr();
 }
 
@@ -3653,6 +3892,82 @@ function renderStats(){
           +'<div class="ocnt" style="color:'+(rep?'#A32D2D':'inherit')+'">'+cnt+'<span>건</span></div></div>';
       }).join('')
     )+'</div>';
+
+  // ── 대분류별 위반 ──
+  var majorCounts = {};
+  ORG_MAJOR_CATS.forEach(function(c){ majorCounts[c] = 0; });
+  majorCounts['(미분류)'] = 0;
+  fv.forEach(function(v){
+    var orgName = (v.org && v.org.trim()) ? v.org.trim() : '';
+    if(!orgName){ majorCounts['(미분류)']++; return; }
+    var meta = ORG_META[orgName];
+    if(!meta || !meta.major){ majorCounts['(미분류)']++; return; }
+    if(majorCounts.hasOwnProperty(meta.major)) majorCounts[meta.major]++;
+    else majorCounts['(미분류)']++;
+  });
+  var majorTotal = Object.values(majorCounts).reduce(function(a,b){ return a+b; }, 0);
+  var majorMax = Math.max.apply(null, Object.values(majorCounts).concat([1]));
+  // 표시 순서: ORG_MAJOR_CATS + (미분류)
+  var majorOrder = ORG_MAJOR_CATS.concat(['(미분류)']);
+  // 미분류 조직 수 계산 (관리탭 안내용)
+  var unmappedOrgs = {};
+  fv.forEach(function(v){
+    var o = (v.org && v.org.trim()) ? v.org.trim() : '';
+    if(o && (!ORG_META[o] || !ORG_META[o].major)) unmappedOrgs[o] = (unmappedOrgs[o]||0)+1;
+  });
+  var unmappedCount = Object.keys(unmappedOrgs).length;
+  var unmappedNotice = unmappedCount > 0
+    ? '<div style="margin:10px 14px 0;padding:8px 10px;background:#FCEBEB;border-radius:6px;border:0.5px solid #f0959588;font-size:11px;color:#A32D2D;line-height:1.5">⚠ 미분류 조직 '+unmappedCount+'개 ('+majorCounts['(미분류)']+'건) — 관리탭 → 조직 카테고리 관리에서 분류해주세요.</div>'
+    : '';
+  document.getElementById('orgmajorcard').innerHTML = '<div class="card"><div class="card-header"><div class="card-header-title">조직 대분류별 위반</div><div class="card-header-sub">선주선급 / 사내협력도급 / 직영 / 사외차량 / 기타'+(majorTotal?' · 총 '+majorTotal+'건':'')+'</div></div>'
+    +(majorTotal===0?'<div class="empty" style="padding:1.5rem">데이터 없음</div>'
+      :'<div style="padding:14px 16px">'
+      + majorOrder.map(function(cat){
+          var cnt = majorCounts[cat]||0;
+          if(cnt===0) return '';
+          var col = ORG_MAJOR_COLORS[cat] || ORG_MAJOR_COLORS['기타'];
+          var pct = Math.round(cnt/majorMax*100);
+          var pctTotal = majorTotal ? Math.round(cnt/majorTotal*100) : 0;
+          return '<div class="brow">'
+            +'<div class="binfo"><div class="binfo-l">'
+            +'<span style="font-size:11px;font-weight:600;color:'+col.fg+';background:'+col.bg+';border-radius:4px;padding:2px 8px;display:inline-block">'+cat+'</span>'
+            +'</div><span style="color:#888;font-size:12px">'+cnt+'건 ('+pctTotal+'%)</span></div>'
+            +'<div class="btrack"><div class="bfill" style="width:'+pct+'%;background:'+col.fg+'"></div></div>'
+            +'</div>';
+        }).filter(Boolean).join('')
+      +'</div>')
+    + unmappedNotice
+    +'</div>';
+
+  // ── 관리부서별 위반 ──
+  var deptCounts = {};
+  fv.forEach(function(v){
+    var orgName = (v.org && v.org.trim()) ? v.org.trim() : '';
+    if(!orgName) return;
+    var meta = ORG_META[orgName];
+    if(!meta || !meta.dept) return; // 관리부서는 선택이므로 미지정 건은 카운트 안 함
+    deptCounts[meta.dept] = (deptCounts[meta.dept]||0) + 1;
+  });
+  var deptEntries = Object.entries(deptCounts).sort(function(a,b){ return b[1]-a[1]; });
+  var deptTotal = deptEntries.reduce(function(a,e){ return a+e[1]; }, 0);
+  var deptMax = deptEntries[0]?deptEntries[0][1]:1;
+  document.getElementById('orgdeptcard').innerHTML = '<div class="card"><div class="card-header"><div class="card-header-title">관리부서별 위반</div><div class="card-header-sub">조직 관리 책임 부서 기준'+(deptTotal?' · 총 '+deptTotal+'건':' · 매핑된 데이터 없음')+'</div></div>'
+    +(deptEntries.length===0?'<div class="empty" style="padding:1.5rem;font-size:13px;color:#aaa">관리탭에서 조직별 관리부서를 지정하면 여기에 집계돼요.</div>'
+      :'<div style="padding:14px 16px">'
+      + deptEntries.map(function(e, i){
+          var dept = e[0], cnt = e[1];
+          var pct = Math.round(cnt/deptMax*100);
+          var pctTotal = deptTotal ? Math.round(cnt/deptTotal*100) : 0;
+          var nameEsc = String(dept).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          return '<div class="brow">'
+            +'<div class="binfo"><div class="binfo-l">'
+            +'<span style="font-size:13px;color:'+(i===0?'#185FA5':'#666')+';font-weight:'+(i===0?'600':'500')+'">'+nameEsc+'</span>'
+            +'</div><span style="color:#888;font-size:12px">'+cnt+'건 ('+pctTotal+'%)</span></div>'
+            +'<div class="btrack"><div class="bfill" style="width:'+pct+'%;background:'+(i===0?'#185FA5':'#888')+'"></div></div>'
+            +'</div>';
+        }).join('')
+      +'</div>')
+    +'</div>';
 
   // ── 조직별 TOP 5 ──
   var oc={};
