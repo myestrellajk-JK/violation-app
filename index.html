@@ -1812,8 +1812,8 @@ function registerGPSForZone(i){
   else setDrawMode('circle');
 
   setTimeout(function(){
-    var defaultLat = obj.lat || 34.7647;
-    var defaultLng = obj.lng || 126.3869;
+    var defaultLat = obj.lat || 34.738572;
+    var defaultLng = obj.lng || 126.382004;
 
     if(!_mapInstance){
       _mapInstance = L.map('zone-map',{tap:false}).setView([defaultLat,defaultLng],17);
@@ -2786,8 +2786,8 @@ function setRecordGPS(id){
   setDrawMode('circle');
 
   setTimeout(function(){
-    var lat = v.lat || 34.7647;
-    var lng = v.lng || 126.3869;
+    var lat = v.lat || 34.738572;
+    var lng = v.lng || 126.382004;
     // 해당 zone의 GPS가 있으면 그 위치로 시작
     if(!v.lat){
       var zoneObj = ZONES.find(function(z){
@@ -3166,8 +3166,8 @@ function setEditGPS(){
   _mapZoneIdx = -2;
   setDrawMode('circle');
   setTimeout(function(){
-    var lat = _editBuffer.lat || 34.7647;
-    var lng = _editBuffer.lng || 126.3869;
+    var lat = _editBuffer.lat || 34.738572;
+    var lng = _editBuffer.lng || 126.382004;
     if(!_mapInstance){
       _mapInstance = L.map('zone-map',{tap:false}).setView([lat,lng],18);
       var streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:20});
@@ -3441,7 +3441,7 @@ function renderViolationMap(){
   var mapEl = document.getElementById('violation-map');
   var center = mappedZones.length
     ? [mappedZones[0].lat, mappedZones[0].lng]
-    : [34.7647, 126.3869];
+    : [34.738572, 126.382004];
 
   if(!_violMapInstance){
     _violMapInstance = L.map('violation-map', {
