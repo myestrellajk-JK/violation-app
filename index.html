@@ -703,13 +703,36 @@
   <div id="tab-entry" class="tc active">
     <div class="section-title">위반 입력</div>
 
-    <!-- ⭐ 1단계: 위치 카드 (필수, 맨 위) -->
+    <!-- ⭐ 1단계: 사진 등록 (맨 위, 항상 활성) -->
+    <div id="photo-card" style="background:#fff;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:4px solid #185FA5">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="font-size:22px">📷</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700;color:#1c1c1e">1단계 · 사진 등록</div>
+          <div style="font-size:11px;color:#8e8e93">사진을 올리면 차량번호(OCR)와 위치(GPS)를 자동으로 읽어와요</div>
+        </div>
+        <div id="photo-status-badge" style="padding:3px 10px;border-radius:12px;background:#E6F1FB;color:#185FA5;font-size:11px;font-weight:600">미등록</div>
+      </div>
+      <div class="photo-zone" id="photo-zone"
+        onclick="document.getElementById('photo-input').click()"
+        ondragover="photoDragOver(event)"
+        ondragleave="photoDragLeave(event)"
+        ondrop="photoDrop(event)">
+        <div class="photo-zone-lbl">📷 클릭하거나 사진을 끌어다 놓으세요 <span style="font-weight:400;color:#aaa;font-size:11px">(최대 2장)</span></div>
+        <div class="photo-zone-sub">PC: 드래그&amp;드롭 · 클립보드 붙여넣기(Ctrl+V) · 모바일: 촬영 또는 앨범</div>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" multiple style="display:none" onchange="photoFileSelect(event)">
+      <div class="photo-grid" id="photo-preview"></div>
+      <div id="ocr-status" style="display:none;margin-top:8px;font-size:12px;padding:8px 10px;border-radius:7px"></div>
+    </div>
+
+    <!-- 2단계: 위치 확인 (사진 EXIF 자동 / 실패 시 수동) -->
     <div id="loc-card" style="background:#fff;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.08);border-left:4px solid #E24B4A">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <div style="font-size:22px">📍</div>
         <div style="flex:1">
-          <div style="font-size:14px;font-weight:700;color:#1c1c1e">1단계 · 위치 지정</div>
-          <div style="font-size:11px;color:#8e8e93">위반 발생 위치를 먼저 정확히 잡아주세요</div>
+          <div style="font-size:14px;font-weight:700;color:#1c1c1e">2단계 · 위치 확인</div>
+          <div style="font-size:11px;color:#8e8e93">사진에 위치가 있으면 자동 지정돼요 · 없으면 아래에서 직접 지정</div>
         </div>
         <div id="loc-status-badge" style="padding:3px 10px;border-radius:12px;background:#FCEBEB;color:#A32D2D;font-size:11px;font-weight:600">미지정</div>
       </div>
@@ -723,7 +746,7 @@
       </div>
     </div>
 
-    <!-- 2단계+ 입력 영역 (위치 지정 후 활성화) -->
+    <!-- 3단계+ 입력 영역 (위치 지정 후 활성화) -->
     <div id="rest-form" style="opacity:0.4;pointer-events:none;transition:opacity 0.3s">
     <div class="fblock">
       <label class="fl">점검 활동 *</label>
@@ -769,20 +792,6 @@
     <div class="fblock">
       <label class="fl">세부장소</label>
       <input type="text" id="fdetail" placeholder="세부 위치를 입력해주세요 (예: 3번 게이트 앞)">
-    </div>
-    <div class="fblock">
-      <label class="fl">사진 등록 <span style="font-weight:400;color:#aaa;font-size:11px">최대 2장</span></label>
-      <div class="photo-zone" id="photo-zone"
-        onclick="document.getElementById('photo-input').click()"
-        ondragover="photoDragOver(event)"
-        ondragleave="photoDragLeave(event)"
-        ondrop="photoDrop(event)">
-        <div class="photo-zone-lbl">📷 클릭하거나 사진을 끌어다 놓으세요</div>
-        <div class="photo-zone-sub">PC: 드래그&amp;드롭 · 클립보드 붙여넣기(Ctrl+V) · 모바일: 촬영 또는 앨범</div>
-      </div>
-      <input type="file" id="photo-input" accept="image/*" multiple style="display:none" onchange="photoFileSelect(event)">
-      <div class="photo-grid" id="photo-preview"></div>
-      <div id="ocr-status" style="display:none;margin-top:8px;font-size:12px;padding:8px 10px;border-radius:7px"></div>
     </div>
     <div class="fblock">
       <label class="fl">위반 유형 * (복수선택 가능)</label>
@@ -1415,6 +1424,11 @@ function addPhoto(file){
         var matched = findZoneByLatLng(gps.lat, gps.lng);
         setEntryLocation(gps.lat, gps.lng, matched?matched.name:'', true);
         showToast('📷 사진 EXIF에서 위치 자동 추출됨'+(matched?' · '+matched.name:''),'ok');
+      } else if(!_entryLat){
+        // 사진에 위치 정보 없음 → 2단계에서 직접 지정 유도
+        showToast('ℹ️ 사진에 위치 정보가 없어요 · 2단계에서 직접 지정해주세요','warn');
+        var hint = document.getElementById('loc-card');
+        if(hint){ hint.style.borderLeftColor = '#BA7517'; setTimeout(function(){ if(!_entryLat) hint.style.borderLeftColor = '#E24B4A'; }, 2500); }
       }
     });
   }
@@ -1456,6 +1470,17 @@ function renderPhotoPreview(){
       +'<button class="photo-del" onclick="removePhoto('+i+')">×</button>'
       +'</div>';
   }).join('');
+  // 사진 카드 배지 갱신
+  var badge = document.getElementById('photo-status-badge');
+  if(badge){
+    if(entryPhotos.length){
+      badge.textContent = '✓ '+entryPhotos.length+'장';
+      badge.style.background = '#EAF3DE'; badge.style.color = '#3B6D11';
+    } else {
+      badge.textContent = '미등록';
+      badge.style.background = '#E6F1FB'; badge.style.color = '#185FA5';
+    }
+  }
 }
 // 클립보드 붙여넣기 (PC)
 document.addEventListener('paste', function(e){
