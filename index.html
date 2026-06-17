@@ -2901,7 +2901,13 @@ function buildSev(){
     var s=SEV[id], b=document.createElement('button');
     b.className='sevbtn'+(id===curSev?' on':'');
     b.textContent=s.l;
-    if(id===curSev){ b.style.borderColor=s.c; b.style.background=s.b; b.style.color=s.c; }
+    if(id===curSev){
+      // 전역 .sevbtn{...!important} 규칙을 이기려면 선택 강조도 important로 지정
+      b.style.setProperty('border-color', s.c, 'important');
+      b.style.setProperty('background', s.b, 'important');
+      b.style.setProperty('color', s.c, 'important');
+      b.style.setProperty('font-weight', '700', 'important');
+    }
     b.onclick=function(){ curSev=id; buildSev(); };
     row.appendChild(b);
   });
@@ -2925,8 +2931,18 @@ function togT(id){
   if(idx>=0) selT.splice(idx,1); else selT.push(id);
   var vt=VT.find(function(v){ return v.id===id; });
   var pill=document.getElementById('pill-'+id);
-  if(selT.indexOf(id)>=0){ pill.style.borderColor=CC[vt.cat]; pill.style.background=CB[vt.cat]; pill.style.color=CC[vt.cat]; pill.innerHTML='✓ '+vt.label; }
-  else { pill.style.borderColor=''; pill.style.background=''; pill.style.color=''; pill.innerHTML=vt.label; }
+  if(selT.indexOf(id)>=0){
+    pill.style.setProperty('border-color', CC[vt.cat], 'important');
+    pill.style.setProperty('background', CB[vt.cat], 'important');
+    pill.style.setProperty('color', CC[vt.cat], 'important');
+    pill.style.setProperty('font-weight', '700', 'important');
+    pill.innerHTML='✓ '+vt.label;
+  }
+  else {
+    pill.style.removeProperty('border-color'); pill.style.removeProperty('background');
+    pill.style.removeProperty('color'); pill.style.removeProperty('font-weight');
+    pill.innerHTML=vt.label;
+  }
   updateRulePreview();
 }
 function updateRulePreview(){
@@ -3322,19 +3338,22 @@ function tryOcrPlate(b64){
     .then(function(r){ return r.json(); })
     .then(function(res){
       _ocrInProgress = false;
+      var pbErr = document.getElementById('photo-status-badge');
       if(!res || !res.ok){
+        var emsg;
         if(res && res.error === 'API_KEY_MISSING'){
-          showOcrStatus('error', '⚙️ 번호판 자동인식이 설정되지 않았어요 (관리자: API 키 등록 필요)');
+          emsg = '⚙️ 번호판 자동인식 미설정 · Apps Script 스크립트 속성에 <b>CLAUDE_API_KEY</b> 등록 필요';
         } else {
-          showOcrStatus('error', '번호판 자동인식을 사용할 수 없어요. 직접 입력해주세요.');
+          var det = (res && res.error) ? ' <span style="color:#aaa;font-size:11px">['+res.error+(res.detail?' · '+String(res.detail).substring(0,70):'')+']</span>' : '';
+          emsg = '⚠️ 번호판 자동인식 실패 · 직접 입력해주세요'+det;
         }
-        setTimeout(function(){ showOcrStatus('hide'); }, 4000);
-        return;
+        showOcrStatus('error', emsg);
+        if(pbErr){ pbErr.textContent='OCR 실패'; pbErr.style.background='#FCEBEB'; pbErr.style.color='#A32D2D'; }
+        return; // 배너 고정 (원인 확인용) · 다음 업로드/초기화 시 교체
       }
       if(!res.found || !res.plate){
-        showOcrStatus('manual', '번호판을 찾지 못했어요. 직접 입력해주세요.');
-        setTimeout(function(){ showOcrStatus('hide'); }, 3500);
-        return;
+        showOcrStatus('manual', '🔍 사진에서 번호판을 찾지 못했어요 · 직접 입력해주세요 <span style="color:#aaa;font-size:11px">(각도·흐림·반사 영향)</span>');
+        return; // 고정
       }
       // 인식 성공
       var plateInput = document.getElementById('fp');
@@ -3367,8 +3386,9 @@ function tryOcrPlate(b64){
     })
     .catch(function(err){
       _ocrInProgress = false;
-      showOcrStatus('error', '번호판 자동인식 연결 실패. 직접 입력해주세요.');
-      setTimeout(function(){ showOcrStatus('hide'); }, 3500);
+      showOcrStatus('error', '🔌 번호판 자동인식 서버 연결 실패 · Apps Script 배포 상태(새 버전 배포) 확인 필요 <span style="color:#aaa;font-size:11px">['+(err&&err.message?String(err.message).substring(0,60):'network')+']</span>');
+      var pbC = document.getElementById('photo-status-badge');
+      if(pbC){ pbC.textContent='연결 실패'; pbC.style.background='#FCEBEB'; pbC.style.color='#A32D2D'; }
     });
   });
 }
