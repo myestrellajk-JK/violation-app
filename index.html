@@ -1469,7 +1469,7 @@ function renderPhotoPreview(){
   if(!grid) return;
   grid.innerHTML = entryPhotos.map(function(b64, i){
     return '<div class="photo-wrap">'
-      +'<img src="'+b64+'">'
+      +'<img src="'+b64+'" onclick="viewPhotoArr(entryPhotos,'+i+')" style="cursor:zoom-in">'
       +'<button class="photo-del" onclick="removePhoto('+i+')">×</button>'
       +'</div>';
   }).join('');
