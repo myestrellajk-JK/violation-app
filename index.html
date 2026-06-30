@@ -1401,6 +1401,7 @@ function setDefaultDatetime(){
 }
 
 var entryPhotos = []; // base64 배열
+var _ocrInProgress = false; // OCR 중복 호출 방지 (병합 시 선언 누락됐던 변수 — 미선언이면 tryOcrPlate 첫 줄에서 ReferenceError)
 
 function photoFileSelect(e){
   var files = Array.from(e.target.files);
