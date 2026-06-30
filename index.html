@@ -765,6 +765,7 @@
         <button type="button" onclick="openCarFind()" style="padding:8px 12px;border-radius:7px;border:0.5px solid #185FA5;background:#E6F1FB;color:#185FA5;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0">🔍 차량 조회</button>
       </div>
       <datalist id="plate-list"></datalist>
+      <div id="plate-ocr-hint" style="display:none;font-size:12.5px;margin-top:6px;padding:8px 11px;border-radius:7px;font-weight:600"></div>
       <div style="font-size:11px;color:#aaa;margin-top:4px">조회 후 차량번호 더블클릭 → 자동 입력 · 신규 차량은 직접 입력 (띄어쓰기 없이)</div>
     </div>
     <div class="fblock">
@@ -1460,7 +1461,7 @@ function addPhoto(file){
 function removePhoto(idx){
   entryPhotos.splice(idx, 1);
   renderPhotoPreview();
-  if(!entryPhotos.length){ showOcrStatus('hide'); } // 사진 모두 제거 시 인식 배너도 정리
+  if(!entryPhotos.length){ showOcrStatus('hide'); setPlateHint('hide'); } // 사진 모두 제거 시 인식 배너도 정리
 }
 function renderPhotoPreview(){
   var grid = document.getElementById('photo-preview');
@@ -2992,7 +2993,7 @@ async function doSave(){
   btn2.textContent='저장 중...'; btn2.disabled=true;
   await sd(entry);
   btn2.disabled=false;
-  document.getElementById('factivity').value=''; document.getElementById('factivity-etc').value=''; document.getElementById('activity-etc-block').style.display='none'; document.getElementById('fp').value=''; document.getElementById('fr').value=''; document.getElementById('fn').value=''; document.getElementById('fdetail').value=''; document.getElementById('forg').value=''; document.getElementById('fz').value=''; entryPhotos=[]; renderPhotoPreview(); showOcrStatus('hide'); setDefaultDT(); buildOrgList(); updateRulePreview(); resetEntryLocation(); updateRulePreview();
+  document.getElementById('factivity').value=''; document.getElementById('factivity-etc').value=''; document.getElementById('activity-etc-block').style.display='none'; document.getElementById('fp').value=''; document.getElementById('fr').value=''; document.getElementById('fn').value=''; document.getElementById('fdetail').value=''; document.getElementById('forg').value=''; document.getElementById('fz').value=''; entryPhotos=[]; renderPhotoPreview(); showOcrStatus('hide'); setPlateHint('hide'); setDefaultDT(); buildOrgList(); updateRulePreview(); resetEntryLocation(); updateRulePreview();
   selT=[]; curSev='low'; buildTG(); buildSev();
   var btn=document.getElementById('savebtn');
   btn.textContent='✓ 저장 완료'; btn.classList.add('ok');
@@ -3323,10 +3324,23 @@ function showOcrStatus(state, text){
   }
 }
 
+// 차량번호 입력칸 바로 아래에 OCR 결과를 안내 (사용자가 자동입력/수기입력 판단)
+function setPlateHint(state, text){
+  var el = document.getElementById('plate-ocr-hint');
+  if(!el) return;
+  if(state === 'hide'){ el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='block';
+  if(state === 'loading'){ el.style.background='#E6F1FB'; el.style.color='#185FA5'; }
+  else if(state === 'ok'){ el.style.background='#EAF3DE'; el.style.color='#3B6D11'; }
+  else if(state === 'manual'){ el.style.background='#FAEEDA'; el.style.color='#BA7517'; }
+  el.innerHTML = text;
+}
+
 function tryOcrPlate(b64){
   if(_ocrInProgress) return; // 중복 호출 방지
   _ocrInProgress = true;
   showOcrStatus('loading');
+  setPlateHint('loading', '🔍 사진에서 번호판 읽는 중…');
 
   makeOcrImage(b64, function(smallImg){
     // Apps Script doPost 호출 (JSONP 불가 → fetch + text 파싱)
@@ -3348,11 +3362,13 @@ function tryOcrPlate(b64){
           emsg = '⚠️ 번호판 자동인식 실패 · 직접 입력해주세요'+det;
         }
         showOcrStatus('error', emsg);
+        setPlateHint('manual', '✏️ 번호판을 자동으로 못 읽었어요 — 직접 입력해주세요');
         if(pbErr){ pbErr.textContent='OCR 실패'; pbErr.style.background='#FCEBEB'; pbErr.style.color='#A32D2D'; }
         return; // 배너 고정 (원인 확인용) · 다음 업로드/초기화 시 교체
       }
       if(!res.found || !res.plate){
-        showOcrStatus('manual', '🔍 사진에서 번호판을 찾지 못했어요 · 직접 입력해주세요 <span style="color:#aaa;font-size:11px">(각도·흐림·반사 영향)</span>');
+        showOcrStatus('manual', '🔍 사진에서 번호판을 못 읽었어요 · 아래 차량번호 칸에 직접 입력해주세요 <span style="color:#aaa;font-size:11px">(각도·흐림·반사 영향)</span>');
+        setPlateHint('manual', '✏️ 사진에서 번호판을 못 읽었어요 — 직접 입력해주세요');
         return; // 고정
       }
       // 인식 성공
@@ -3367,12 +3383,14 @@ function tryOcrPlate(b64){
         if(typeof buildOrgList === 'function') buildOrgList();
         var validMark = res.valid ? '' : ' <span style="color:#BA7517">(형식 확인 필요)</span>';
         var locHint = _entryLat ? '' : ' <span style="color:#8e8e93">· 위치 지정하면 3단계에서 확인 가능</span>';
-        showOcrStatus('success', '✅ 번호판 인식 성공 · <b>'+res.plate+'</b> 차량번호 자동 입력됨'+validMark+locHint);
+        showOcrStatus('success', '✅ 번호판 인식 성공 · <b>'+res.plate+'</b> 차량번호에 자동 입력됨'+validMark+locHint);
+        setPlateHint('ok', '✅ 사진에서 읽음: <b>'+res.plate+'</b> — 맞는지 확인하세요');
         if(pbadge){ pbadge.textContent='✓ '+res.plate; pbadge.style.background='#EAF3DE'; pbadge.style.color='#3B6D11'; }
         // 성공 배너는 자동으로 숨기지 않음 (다음 사진 업로드/초기화 시 교체됨)
       } else if(cur === res.plate){
         // 이미 같은 값
         showOcrStatus('success', '✅ 번호판 일치 확인 · <b>'+res.plate+'</b>');
+        setPlateHint('ok', '✅ 사진 번호판과 일치: <b>'+res.plate+'</b>');
         if(pbadge){ pbadge.textContent='✓ '+res.plate; pbadge.style.background='#EAF3DE'; pbadge.style.color='#3B6D11'; }
         // 자동 숨김 안 함
       } else {
@@ -3381,12 +3399,14 @@ function tryOcrPlate(b64){
           '🔍 사진에서 <b>'+res.plate+'</b> 인식됨 (입력값: '+cur+') '
           +'<button onclick="applyOcrPlate(\''+res.plate.replace(/'/g,"")+'\')" '
           +'style="margin-left:6px;padding:3px 10px;border-radius:5px;border:1px solid #BA7517;background:#fff;color:#BA7517;font-size:11px;cursor:pointer;font-family:inherit">적용</button>');
+        setPlateHint('manual', '🔍 사진 인식: <b>'+res.plate+'</b> — 위 [적용]으로 교체 가능');
         // 제안은 사용자가 닫을 때까지 유지 (자동 숨김 안 함)
       }
     })
     .catch(function(err){
       _ocrInProgress = false;
       showOcrStatus('error', '🔌 번호판 자동인식 서버 연결 실패 · Apps Script 배포 상태(새 버전 배포) 확인 필요 <span style="color:#aaa;font-size:11px">['+(err&&err.message?String(err.message).substring(0,60):'network')+']</span>');
+      setPlateHint('manual', '✏️ 자동인식 연결 실패 — 직접 입력해주세요');
       var pbC = document.getElementById('photo-status-badge');
       if(pbC){ pbC.textContent='연결 실패'; pbC.style.background='#FCEBEB'; pbC.style.color='#A32D2D'; }
     });
@@ -3399,6 +3419,7 @@ function applyOcrPlate(plate){
   if(typeof normalizePlate === 'function') normalizePlate(plateInput);
   if(typeof buildOrgList === 'function') buildOrgList();
   showOcrStatus('success', '✅ 적용됨: <b>'+plate+'</b>');
+  setPlateHint('ok', '✅ 적용됨: <b>'+plate+'</b> — 맞는지 확인하세요');
   setTimeout(function(){ showOcrStatus('hide'); }, 2500);
 }
 
